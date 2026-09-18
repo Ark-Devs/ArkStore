@@ -1,0 +1,22 @@
+# Curation for scripts/discover.ts, which also pulls in trending Android apps from GitHub.
+#   owner/repo [category] [featured]   always list this repo (category and featured optional)
+#   !owner/repo                        never list this repo, even when it's trending
+# Featured apps get App of the Day, the top of the Apps tab, and rank first in search and
+# their category. Real owners can claim their listing from ArkStore Studio.
+
+Ark-Devs/DB-Crawler developer featured
+
+# Category fixes for trending apps the keyword guesser gets wrong
+marlboro-advance/mpvEx video
+moonlight-stream/moonlight-android games
+plainhub/plain-app files
+komi-store/komi-store tools
+samyak2403/RepoStore tools
+dominostars/playtranslate education
+yjeanrenaud/yj_nearbyglasses security
+mokshablr/gander productivity
+
+# Not a fit for the catalog
+!reqable/reqable-app
+!MorpheApp/morphe-manager
+!CeuiLiSA/Pixiv-Shaft
