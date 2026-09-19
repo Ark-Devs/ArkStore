@@ -49,7 +49,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Install
-        run: npm ci --no-audit --no-fund
+        run: npm ci --include=dev --no-audit --no-fund
 
       - name: Test
         run: npm test
