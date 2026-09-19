@@ -1,5 +1,7 @@
 import { router } from 'expo-router';
-import { ArrowUpRight, MagnifyingGlass, XCircle } from 'phosphor-react-native';
+import { ArrowUpRight } from 'phosphor-react-native/src/icons/ArrowUpRight';
+import { MagnifyingGlass } from 'phosphor-react-native/src/icons/MagnifyingGlass';
+import { XCircle } from 'phosphor-react-native/src/icons/XCircle';
 import { useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 

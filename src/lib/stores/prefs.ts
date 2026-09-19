@@ -15,7 +15,10 @@ type Prefs = {
   buildOverride: Record<string, string>;
   notifyUpdates: boolean;
   installerCleanup: InstallerCleanup;
+  /** Measured APK download speed on this phone (bytes/second), smoothed across downloads. */
+  downloadSpeed: number | null;
   setTheme: (t: ThemePref) => void;
+  recordDownloadSpeed: (bytesPerSecond: number) => void;
   setBuildOverride: (appId: string, assetName: string | null) => void;
   setNotifyUpdates: (on: boolean) => void;
   setInstallerCleanup: (v: InstallerCleanup) => void;
@@ -32,7 +35,11 @@ export const usePrefs = create<Prefs>()(
       buildOverride: {},
       notifyUpdates: true,
       installerCleanup: 'ask',
+      downloadSpeed: null,
       setTheme: (theme) => set({ theme }),
+      // Weighted toward recent downloads, so a switch from Wi-Fi to mobile data shows up quickly.
+      recordDownloadSpeed: (bps) =>
+        set((s) => ({ downloadSpeed: s.downloadSpeed ? s.downloadSpeed * 0.5 + bps * 0.5 : bps })),
       setBuildOverride: (appId, assetName) =>
         set((s) => {
           const next = { ...s.buildOverride };

@@ -1,5 +1,10 @@
 import type { Tabs } from 'expo-router';
-import { ArrowsClockwise, Code, MagnifyingGlass, Newspaper, SquaresFour, type Icon } from 'phosphor-react-native';
+import { ArrowsClockwise } from 'phosphor-react-native/src/icons/ArrowsClockwise';
+import { Code } from 'phosphor-react-native/src/icons/Code';
+import { MagnifyingGlass } from 'phosphor-react-native/src/icons/MagnifyingGlass';
+import { Newspaper } from 'phosphor-react-native/src/icons/Newspaper';
+import { SquaresFour } from 'phosphor-react-native/src/icons/SquaresFour';
+import type { Icon } from 'phosphor-react-native';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

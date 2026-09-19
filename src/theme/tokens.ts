@@ -41,7 +41,6 @@ export type Palette = { [K in keyof (typeof palette)['dark']]: string };
 
 export const fonts = {
   dot: 'Doto_800ExtraBold',
-  dotBlack: 'Doto_900Black',
   sans: 'SpaceGrotesk_400Regular',
   sansMedium: 'SpaceGrotesk_500Medium',
   sansSemi: 'SpaceGrotesk_600SemiBold',

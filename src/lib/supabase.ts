@@ -29,6 +29,10 @@ if (Platform.OS !== 'web') {
 
 const FRIENDLY: Record<string, string> = {
   sign_in_required: 'Sign in with GitHub first.',
+  github_login_disabled:
+    "GitHub sign-in isn't switched on for this ArkStore server yet. In Supabase, enable the GitHub provider under Authentication > Providers.",
+  'provider is not enabled':
+    "GitHub sign-in isn't switched on for this ArkStore server yet. In Supabase, enable the GitHub provider under Authentication > Providers.",
   github_account_required: 'Your ArkStore account needs to be linked to GitHub.',
   invalid_repo: "That doesn't look like a GitHub repo link.",
   invalid_name: 'Give your app a name (up to 40 characters).',

@@ -73,4 +73,35 @@ writeFileSync(out('android-icon-background.png'), render(1024, { background: BLA
 writeFileSync(out('android-icon-monochrome.png'), render(1024, { background: CLEAR, panel: 520, faint: false, mono: true }));
 writeFileSync(out('splash-icon.png'), render(512, { background: CLEAR, panel: 400, faint: true }));
 writeFileSync(out('favicon.png'), render(64, { background: BLACK, panel: 52, faint: false }));
-console.log('Icons written to assets/images');
+
+// Dot tiles for the Nothing-style grids and dotted rules. Drawn once as tiny PNGs and
+// repeated by the image view: far cheaper to scroll than live SVG patterns.
+// White on transparent; the app tints them per theme. @2x/@3x match screen density.
+function tile(w: number, h: number, dots: [number, number, number][]) {
+  const png = new PNG({ width: w, height: h });
+  png.data.fill(0);
+  for (const [cx, cy, r] of dots) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const cover = Math.max(0, Math.min(1, r - Math.hypot(x + 0.5 - cx, y + 0.5 - cy) + 0.5));
+        if (cover <= 0) continue;
+        const i = (y * w + x) * 4;
+        png.data[i] = png.data[i + 1] = png.data[i + 2] = 255;
+        png.data[i + 3] = Math.max(png.data[i + 3], Math.round(cover * 255));
+      }
+    }
+  }
+  return PNG.sync.write(png);
+}
+const tiles: Record<string, (s: number) => Buffer> = {
+  'dot-grid-12': (s) => tile(12 * s, 12 * s, [[6 * s, 6 * s, 1.25 * s]]),
+  'dot-grid-8': (s) => tile(8 * s, 8 * s, [[4 * s, 4 * s, 0.9 * s]]),
+  'dot-rule': (s) => tile(6 * s, 4 * s, [[3 * s, 2 * s, 1 * s]]),
+  'dot-rule-v': (s) => tile(4 * s, 5 * s, [[2 * s, 2.5 * s, 1 * s]]),
+};
+for (const [name, draw] of Object.entries(tiles)) {
+  for (const scale of [1, 2, 3]) {
+    writeFileSync(out(`dots/${name}${scale === 1 ? '' : `@${scale}x`}.png`), draw(scale));
+  }
+}
+console.log('Icons and dot tiles written to assets/images');

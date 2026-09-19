@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { UserCircle } from 'phosphor-react-native';
+import { UserCircle } from 'phosphor-react-native/src/icons/UserCircle';
 import { View } from 'react-native';
 
 import { CategoryCard, FeatureCard, ListCard } from '@/components/store/today-cards';

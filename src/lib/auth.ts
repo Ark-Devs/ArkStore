@@ -49,7 +49,27 @@ supabase.auth.onAuthStateChange((event, session) => {
 
 const SCOPES = 'read:user';
 
+/**
+ * Whether the Supabase project has the GitHub provider switched on. Checked up front so
+ * people get a readable message instead of Supabase's raw "provider is not enabled" page.
+ */
+async function githubSignInEnabled(): Promise<boolean | null> {
+  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
+  if (!url || !key) return false;
+  try {
+    const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+    if (!res.ok) return null;
+    const settings = (await res.json()) as { external?: Record<string, boolean> };
+    return Boolean(settings.external?.github);
+  } catch {
+    return null; // Offline or blocked: let the sign-in attempt report the real problem.
+  }
+}
+
 export async function signInWithGitHub(): Promise<'signed-in' | 'cancelled' | 'redirecting'> {
+  if ((await githubSignInEnabled()) === false) throw new Error('github_login_disabled');
+
   if (Platform.OS === 'web') {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
@@ -72,17 +92,29 @@ export async function signInWithGitHub(): Promise<'signed-in' | 'cancelled' | 'r
   return 'signed-in';
 }
 
+// A redirect can reach us twice on Android (the auth browser session and the deep-link
+// handler both see it). A code can only be exchanged once, so share one exchange per code.
+const exchanges = new Map<string, Promise<void>>();
+
 /** Finishes the OAuth round trip from the redirect URL (?code=...). Safe to call twice. */
-export async function completeSignIn(url: string) {
+export function completeSignIn(url: string): Promise<void> {
   const { queryParams } = Linking.parse(url);
   const errorText = queryParams?.error_description ?? queryParams?.error;
-  if (errorText) throw new Error(String(errorText));
+  if (errorText) return Promise.reject(new Error(String(errorText)));
   const code = queryParams?.code;
-  if (typeof code !== 'string') return;
-  if ((await supabase.auth.getSession()).data.session) return;
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) throw error;
-  if (data.session?.provider_token) await saveToken(data.session.provider_token);
+  if (typeof code !== 'string') return Promise.resolve();
+
+  let pending = exchanges.get(code);
+  if (!pending) {
+    pending = (async () => {
+      if ((await supabase.auth.getSession()).data.session) return;
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      if (data.session?.provider_token) await saveToken(data.session.provider_token);
+    })();
+    exchanges.set(code, pending);
+  }
+  return pending;
 }
 
 export async function signOut() {

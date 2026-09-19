@@ -1,13 +1,14 @@
 import '@/lib/updates';
 
-import { Doto_800ExtraBold, Doto_900Black } from '@expo-google-fonts/doto';
-import {
-  SpaceGrotesk_400Regular,
-  SpaceGrotesk_500Medium,
-  SpaceGrotesk_600SemiBold,
-  SpaceGrotesk_700Bold,
-} from '@expo-google-fonts/space-grotesk';
-import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
+// Per-weight imports: the package entry points require every weight, which would ship
+// all of them in the app. These are the only weights ArkStore uses.
+import { Doto_800ExtraBold } from '@expo-google-fonts/doto/800ExtraBold';
+import { SpaceGrotesk_400Regular } from '@expo-google-fonts/space-grotesk/400Regular';
+import { SpaceGrotesk_500Medium } from '@expo-google-fonts/space-grotesk/500Medium';
+import { SpaceGrotesk_600SemiBold } from '@expo-google-fonts/space-grotesk/600SemiBold';
+import { SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk/700Bold';
+import { SpaceMono_400Regular } from '@expo-google-fonts/space-mono/400Regular';
+import { SpaceMono_700Bold } from '@expo-google-fonts/space-mono/700Bold';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
@@ -36,8 +37,12 @@ function UpdateWatcher() {
   useEffect(() => {
     setupUpdateChecks().catch(() => undefined);
 
+    // Coming back to the app is frequent; the phone-side checks ask Android about every
+    // installed app, so run them at most every 10 minutes.
+    let lastPhoneCheck = 0;
     const refresh = async () => {
-      if (Platform.OS === 'android') {
+      if (Platform.OS === 'android' && Date.now() - lastPhoneCheck > 10 * 60 * 1000) {
+        lastPhoneCheck = Date.now();
         // Forget apps that were uninstalled outside ArkStore.
         const { apps, forget } = useInstalled.getState();
         for (const app of Object.values(apps)) {
@@ -68,7 +73,6 @@ export default function RootLayout() {
   const c = useColors();
   const [loaded, error] = useFonts({
     Doto_800ExtraBold,
-    Doto_900Black,
     SpaceGrotesk_400Regular,
     SpaceGrotesk_500Medium,
     SpaceGrotesk_600SemiBold,

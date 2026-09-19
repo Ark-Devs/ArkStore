@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { X } from 'phosphor-react-native';
+import { X } from 'phosphor-react-native/src/icons/X';
 import { useState } from 'react';
 import { Modal, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

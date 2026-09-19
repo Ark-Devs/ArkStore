@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Check } from 'phosphor-react-native';
+import { Check } from 'phosphor-react-native/src/icons/Check';
 import { useEffect } from 'react';
 import { Alert, Linking, Platform, View } from 'react-native';
 import Animated, {
@@ -15,6 +15,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { DotLoader } from '@/components/ui/dots';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
+import { duration } from '@/lib/format';
 import { repoUrl } from '@/lib/github/repo';
 import { cancelDownload, installApp, installFromFile, openInstalledApp } from '@/lib/install';
 import { hasUpdate, useInstalled } from '@/lib/stores/installed';
@@ -108,14 +109,31 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
   };
 
   if (task?.status === 'downloading') {
+    const left = task.eta != null ? `${duration(task.eta)} left` : null;
     return (
       <Tap
         onPress={() => cancelDownload(app.id)}
         accessibilityRole="button"
-        accessibilityLabel={`Stop downloading ${app.name}`}
-        style={{ height, minWidth: lg ? 120 : 74, alignItems: 'center', justifyContent: 'center' }}
+        accessibilityLabel={`Stop downloading ${app.name}${left ? `, ${left}` : ''}`}
+        style={{
+          minHeight: height,
+          minWidth: lg ? 120 : 74,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: lg ? 'row' : 'column',
+          gap: lg ? 10 : 3,
+        }}
       >
         <ProgressRing progress={task.progress} size={lg ? 34 : 28} />
+        {left ? (
+          <Txt
+            variant={lg ? 'subhead' : 'label'}
+            color="text2"
+            style={lg ? { fontVariant: ['tabular-nums'] } : { fontSize: 8.5, letterSpacing: 0.6 }}
+          >
+            {left}
+          </Txt>
+        ) : null}
       </Tap>
     );
   }

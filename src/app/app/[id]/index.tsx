@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { CaretRight, Star } from 'phosphor-react-native';
+import { CaretRight } from 'phosphor-react-native/src/icons/CaretRight';
+import { Star } from 'phosphor-react-native/src/icons/Star';
 import { useState } from 'react';
 import { Linking, ScrollView, Share, View } from 'react-native';
 
@@ -19,7 +20,16 @@ import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
 import { useApp, useCategories, useDeveloperApps } from '@/lib/api';
 import { chooseBuild } from '@/lib/device';
-import { androidVersion, compactNumber, fileSize, longDate, plainNotes, relativeDate, shortVersion } from '@/lib/format';
+import {
+  androidVersion,
+  compactNumber,
+  downloadEstimate,
+  fileSize,
+  longDate,
+  plainNotes,
+  relativeDate,
+  shortVersion,
+} from '@/lib/format';
 import { profileUrl, repoUrl } from '@/lib/github/repo';
 import { usePrefs } from '@/lib/stores/prefs';
 import { friendlyError } from '@/lib/supabase';
@@ -76,6 +86,7 @@ export default function AppScreen() {
   const categories = useCategories();
   const more = useDeveloperApps(app?.developer_login);
   const override = usePrefs((s) => (id ? s.buildOverride[id] : undefined));
+  const speed = usePrefs((s) => s.downloadSpeed);
 
   if (isLoading) {
     return (
@@ -131,7 +142,11 @@ export default function AppScreen() {
     },
     { label: 'Category', value: <CategoryIcon name={category?.icon} size={24} />, caption: category?.name ?? app.category },
     { label: 'Version', value: shortVersion(app.latest_version) || '-', caption: app.latest_prerelease ? 'beta' : relativeDate(app.latest_published_at) },
-    { label: 'Size', value: fileSize(build?.asset.size), caption: build?.matched ? 'for this phone' : 'download' },
+    {
+      label: 'Size',
+      value: fileSize(build?.asset.size),
+      caption: downloadEstimate(build?.asset.size, speed) ?? (build?.matched ? 'for this phone' : 'download'),
+    },
     ...(app.min_sdk ? [{ label: 'Requires', value: androidVersion(app.min_sdk)!.replace('Android ', ''), caption: 'Android' }] : []),
     ...(app.license ? [{ label: 'License', value: app.license.replace(/-only|-or-later/i, ''), caption: 'open source' }] : []),
   ];

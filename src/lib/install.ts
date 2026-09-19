@@ -176,15 +176,23 @@ export async function downloadApp(app: ListApp): Promise<InstallerFile | null> {
   const safe = `${app.id}-${app.latest_version}-${build.asset.name}`.replace(/[^A-Za-z0-9._-]/g, '_');
   const target = new File(installersDir(), safe);
 
+  const startedAt = Date.now();
   try {
     const file = await File.downloadFileAsync(build.asset.url, target, {
       idempotent: true,
       signal: controller.signal,
       onProgress: ({ bytesWritten, totalBytes }) => {
         const total = totalBytes > 0 ? totalBytes : build.asset.size;
-        useTasks.getState().progress(app.id, total > 0 ? Math.min(1, bytesWritten / total) : -1);
+        const elapsed = (Date.now() - startedAt) / 1000;
+        // Wait a second before estimating so connection setup doesn't skew the speed.
+        const speed = elapsed >= 1 && bytesWritten > 0 ? bytesWritten / elapsed : null;
+        const eta = speed && total > 0 ? Math.max(0, (total - bytesWritten) / speed) : null;
+        useTasks.getState().progress(app.id, total > 0 ? Math.min(1, bytesWritten / total) : -1, eta);
       },
     });
+    const seconds = (Date.now() - startedAt) / 1000;
+    const bytes = file.size || build.asset.size;
+    if (seconds >= 1 && bytes >= 512 * 1024) usePrefs.getState().recordDownloadSpeed(bytes / seconds);
     const entry: InstallerFile = {
       appId: app.id,
       name: app.name,

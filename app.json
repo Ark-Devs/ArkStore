@@ -2,7 +2,7 @@
   "expo": {
     "name": "ArkStore",
     "slug": "arkstore",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "arkstore",
@@ -21,7 +21,8 @@
         "android.permission.QUERY_ALL_PACKAGES",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 2
     },
     "web": {
       "output": "single",
@@ -54,7 +55,22 @@
         {
           "photosPermission": "ArkStore opens your photos only when you upload an icon or screenshot for an app you publish."
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a",
+              "armeabi-v7a"
+            ],
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true
+          }
+        }
+      ],
+      "./plugins/with-abi-splits"
     ],
     "experiments": {
       "typedRoutes": true,

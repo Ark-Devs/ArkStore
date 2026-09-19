@@ -42,6 +42,16 @@ Installing APKs directly needs a real build (`REQUEST_INSTALL_PACKAGES`):
 npx eas-cli build -p android --profile preview
 ```
 
+## Releases
+
+`.github/workflows/android-release.yml` builds the APKs on GitHub and publishes the release:
+
+1. One-time: add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_KEY` under Settings > Secrets and variables > Actions.
+2. Bump `version` and `android.versionCode` in `app.json`, and write `release-notes/v<version>.md`.
+3. Tag and push: `git tag -a v1.2.0 -m "ArkStore 1.2.0" && git push origin v1.2.0`
+
+Each release ships one APK per CPU type (`arm64-v8a`, `armeabi-v7a`) plus `universal`. Release builds use R8 and compressed native libraries (see `expo-build-properties` in `app.json`) and per-CPU splits (`plugins/with-abi-splits.js`).
+
 ## Scripts
 
 | Command | What it does |

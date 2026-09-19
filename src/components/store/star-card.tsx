@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { GithubLogo, Star } from 'phosphor-react-native';
+import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
+import { Star } from 'phosphor-react-native/src/icons/Star';
 import { Linking, View } from 'react-native';
 
 import { DotGrid } from '@/components/ui/dots';

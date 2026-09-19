@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { Trash } from 'phosphor-react-native';
+import { Trash } from 'phosphor-react-native/src/icons/Trash';
 import { useCallback, useState } from 'react';
 import { Alert, View } from 'react-native';
 

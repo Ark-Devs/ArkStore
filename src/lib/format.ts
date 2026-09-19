@@ -13,6 +13,22 @@ export function fileSize(bytes: number | null | undefined): string {
   return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
 }
 
+/** "8 sec", "1 min 20 sec", "12 min". */
+export function duration(seconds: number): string {
+  const s = Math.max(1, Math.round(seconds));
+  if (s < 60) return `${s} sec`;
+  const m = Math.floor(s / 60);
+  const rest = s % 60;
+  if (m < 10 && rest >= 5) return `${m} min ${rest} sec`;
+  return `${Math.round(s / 60)} min`;
+}
+
+/** How long a download of `bytes` should take at this phone's measured speed. */
+export function downloadEstimate(bytes: number | null | undefined, bytesPerSecond: number | null | undefined) {
+  if (!bytes || !bytesPerSecond || bytesPerSecond <= 0) return null;
+  return `≈ ${duration(bytes / bytesPerSecond)}`;
+}
+
 export function relativeDate(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return '';
   const diff = now - Date.parse(iso);

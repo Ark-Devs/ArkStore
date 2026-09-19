@@ -6,7 +6,8 @@ const VARIANTS = {
   // Dot-matrix display type (Nothing OS).
   hero: { fontFamily: fonts.dot, fontSize: 44, lineHeight: 48, letterSpacing: -0.5 },
   display: { fontFamily: fonts.dot, fontSize: 34, lineHeight: 38 },
-  number: { fontFamily: fonts.dot, fontSize: 22, lineHeight: 26 },
+  // Stats and counts: clean grotesk with even-width digits so values line up.
+  number: { fontFamily: fonts.sansBold, fontSize: 21, lineHeight: 26, letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
   // Interface type.
   title: { fontFamily: fonts.sansBold, fontSize: 24, lineHeight: 29, letterSpacing: -0.3 },
   section: { fontFamily: fonts.sansBold, fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },

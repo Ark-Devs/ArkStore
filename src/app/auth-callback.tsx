@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { DotLoader } from '@/components/ui/dots';
@@ -18,7 +18,16 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (url) completeSignIn(url).catch((e) => setError(e.message));
+    if (!url) return;
+    if (Platform.OS === 'web') {
+      // supabase-js finishes the exchange from the URL itself (detectSessionInUrl);
+      // only surface errors GitHub or Supabase sent back.
+      const { queryParams } = Linking.parse(url);
+      const text = queryParams?.error_description ?? queryParams?.error;
+      if (text) setError(String(text));
+      return;
+    }
+    completeSignIn(url).catch((e) => setError(e.message));
   }, [url]);
 
   useEffect(() => {

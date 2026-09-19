@@ -1,7 +1,13 @@
 import * as Application from 'expo-application';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Bell, CircleHalf, Cpu, GithubLogo, Moon, SignOut, Sun } from 'phosphor-react-native';
+import { Bell } from 'phosphor-react-native/src/icons/Bell';
+import { CircleHalf } from 'phosphor-react-native/src/icons/CircleHalf';
+import { Cpu } from 'phosphor-react-native/src/icons/Cpu';
+import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
+import { Moon } from 'phosphor-react-native/src/icons/Moon';
+import { SignOut } from 'phosphor-react-native/src/icons/SignOut';
+import { Sun } from 'phosphor-react-native/src/icons/Sun';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, Switch, View } from 'react-native';
 

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { BellRinging } from 'phosphor-react-native';
+import { BellRinging } from 'phosphor-react-native/src/icons/BellRinging';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, View } from 'react-native';
 

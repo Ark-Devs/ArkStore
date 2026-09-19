@@ -1,5 +1,7 @@
 import { router } from 'expo-router';
-import { CaretLeft, ShareNetwork, X } from 'phosphor-react-native';
+import { CaretLeft } from 'phosphor-react-native/src/icons/CaretLeft';
+import { ShareNetwork } from 'phosphor-react-native/src/icons/ShareNetwork';
+import { X } from 'phosphor-react-native/src/icons/X';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

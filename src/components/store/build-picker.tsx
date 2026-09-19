@@ -1,4 +1,5 @@
-import { Check, Cpu } from 'phosphor-react-native';
+import { Check } from 'phosphor-react-native/src/icons/Check';
+import { Cpu } from 'phosphor-react-native/src/icons/Cpu';
 import { useState } from 'react';
 import { Modal, Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +8,7 @@ import { DotRule } from '@/components/ui/dots';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { abiLabel, assetAbi, chooseBuild, deviceAbis } from '@/lib/device';
-import { fileSize } from '@/lib/format';
+import { downloadEstimate, fileSize } from '@/lib/format';
 import type { ApkAsset } from '@/lib/github/apk';
 import { usePrefs } from '@/lib/stores/prefs';
 import type { ListApp } from '@/lib/types';
@@ -30,6 +31,7 @@ export function BuildPicker({ app }: { app: ListApp }) {
   const [open, setOpen] = useState(false);
   const override = usePrefs((s) => s.buildOverride[app.id]);
   const setOverride = usePrefs((s) => s.setBuildOverride);
+  const speed = usePrefs((s) => s.downloadSpeed);
   const assets = app.apk_assets ?? [];
   const choice = chooseBuild(assets, { name: app.apk_name, url: app.apk_url, size: app.apk_size }, override);
   if (!choice) return null;
@@ -43,9 +45,14 @@ export function BuildPicker({ app }: { app: ListApp }) {
       : multiple
         ? 'Works on any phone'
         : 'One build for every phone';
-  const detail = choice.matched
-    ? `${abiLabel(choice.abi!)} build  ·  ${fileSize(choice.asset.size)}`
-    : `${buildName(choice.asset).toLowerCase()} build  ·  ${fileSize(choice.asset.size)}`;
+  const estimate = downloadEstimate(choice.asset.size, speed);
+  const detail = [
+    choice.matched ? `${abiLabel(choice.abi!)} build` : `${buildName(choice.asset).toLowerCase()} build`,
+    fileSize(choice.asset.size),
+    estimate,
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
   const auto = chooseBuild(assets, { name: app.apk_name, url: app.apk_url, size: app.apk_size });
 
   return (
@@ -99,7 +106,7 @@ export function BuildPicker({ app }: { app: ListApp }) {
             const selected = asset ? override === asset.name : !override;
             const label = asset ? buildName(asset) : 'Automatic';
             const sub = asset
-              ? `${asset.name}  ·  ${fileSize(asset.size)}`
+              ? [asset.name, fileSize(asset.size), downloadEstimate(asset.size, speed)].filter(Boolean).join('  ·  ')
               : auto
                 ? `Currently ${buildName(auto.asset).toLowerCase()}  ·  ${fileSize(auto.asset.size)}`
                 : '';

@@ -1,7 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { ArrowsClockwise, EyeSlash, Eye, GithubLogo, PencilSimple, Plus, Trash } from 'phosphor-react-native';
+import { ArrowsClockwise } from 'phosphor-react-native/src/icons/ArrowsClockwise';
+import { EyeSlash } from 'phosphor-react-native/src/icons/EyeSlash';
+import { Eye } from 'phosphor-react-native/src/icons/Eye';
+import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
+import { PencilSimple } from 'phosphor-react-native/src/icons/PencilSimple';
+import { Plus } from 'phosphor-react-native/src/icons/Plus';
+import { Trash } from 'phosphor-react-native/src/icons/Trash';
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
@@ -29,12 +35,14 @@ const STEPS = [
 function SignedOut() {
   const c = useColors();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const signIn = async () => {
     setBusy(true);
+    setError(null);
     try {
       await signInWithGitHub();
     } catch (e) {
-      Alert.alert("Couldn't sign in", friendlyError(e));
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -75,6 +83,10 @@ function SignedOut() {
         {!isConfigured ? (
           <Txt variant="caption" color="accent">
             Supabase isn't configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY to .env.
+          </Txt>
+        ) : error ? (
+          <Txt variant="callout" color="accent" accessibilityLiveRegion="polite">
+            {error}
           </Txt>
         ) : null}
       </View>
@@ -192,7 +204,7 @@ function MyAppCard({ app, stats }: { app: StoreApp; stats: DownloadDay[] }) {
           <Txt variant="label" color="text3">
             Downloads
           </Txt>
-          <Txt variant="display" size={30}>
+          <Txt variant="number" size={28}>
             {compactNumber(app.downloads)}
           </Txt>
         </View>
@@ -200,7 +212,7 @@ function MyAppCard({ app, stats }: { app: StoreApp; stats: DownloadDay[] }) {
           <Txt variant="label" color="text3">
             Installs
           </Txt>
-          <Txt variant="display" size={30}>
+          <Txt variant="number" size={28}>
             {compactNumber(app.installs)}
           </Txt>
           <Txt variant="caption" color="text3">

@@ -1,26 +1,24 @@
-import {
-  BookOpen,
-  Camera,
-  ChatCircle,
-  CheckSquare,
-  CloudSun,
-  Code,
-  FilmStrip,
-  FolderOpen,
-  GameController,
-  GraduationCap,
-  Heartbeat,
-  MapTrifold,
-  MusicNotes,
-  Newspaper,
-  PaintBrush,
-  ShieldCheck,
-  SquaresFour,
-  UsersThree,
-  Wallet,
-  Wrench,
-  type Icon,
-} from 'phosphor-react-native';
+import { BookOpen } from 'phosphor-react-native/src/icons/BookOpen';
+import { Camera } from 'phosphor-react-native/src/icons/Camera';
+import { ChatCircle } from 'phosphor-react-native/src/icons/ChatCircle';
+import { CheckSquare } from 'phosphor-react-native/src/icons/CheckSquare';
+import { CloudSun } from 'phosphor-react-native/src/icons/CloudSun';
+import { Code } from 'phosphor-react-native/src/icons/Code';
+import { FilmStrip } from 'phosphor-react-native/src/icons/FilmStrip';
+import { FolderOpen } from 'phosphor-react-native/src/icons/FolderOpen';
+import { GameController } from 'phosphor-react-native/src/icons/GameController';
+import { GraduationCap } from 'phosphor-react-native/src/icons/GraduationCap';
+import { Heartbeat } from 'phosphor-react-native/src/icons/Heartbeat';
+import { MapTrifold } from 'phosphor-react-native/src/icons/MapTrifold';
+import { MusicNotes } from 'phosphor-react-native/src/icons/MusicNotes';
+import { Newspaper } from 'phosphor-react-native/src/icons/Newspaper';
+import { PaintBrush } from 'phosphor-react-native/src/icons/PaintBrush';
+import { ShieldCheck } from 'phosphor-react-native/src/icons/ShieldCheck';
+import { SquaresFour } from 'phosphor-react-native/src/icons/SquaresFour';
+import { UsersThree } from 'phosphor-react-native/src/icons/UsersThree';
+import { Wallet } from 'phosphor-react-native/src/icons/Wallet';
+import { Wrench } from 'phosphor-react-native/src/icons/Wrench';
+import type { Icon } from 'phosphor-react-native';
 
 import { useColors } from '@/theme';
 
