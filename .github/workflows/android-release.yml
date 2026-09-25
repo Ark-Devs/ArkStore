@@ -94,7 +94,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          target_commitish: ${{ github.sha }}
           name: ArkStore ${{ steps.tag.outputs.tag }}
           body_path: release-notes/${{ steps.tag.outputs.tag }}.md
           files: dist/*.apk
