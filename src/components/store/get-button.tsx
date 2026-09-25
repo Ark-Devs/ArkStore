@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { Check } from 'phosphor-react-native/src/icons/Check';
 import { useEffect } from 'react';
 import { Linking, View } from 'react-native';
@@ -17,6 +18,7 @@ import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { showAlert } from '@/lib/alert';
 import { pickDownload } from '@/lib/device';
+import { OS_LABEL } from '@/lib/github/assets';
 import { duration } from '@/lib/format';
 import { repoUrl } from '@/lib/github/repo';
 import { canOpen, cancelDownload, installApp, installFromFile, openApp } from '@/lib/install';
@@ -154,7 +156,11 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
   let label = 'GET';
   let onPress: () => void = () => run('install');
   let icon: React.ReactNode = null;
-  if (!hasRelease) {
+  if (!hasRelease && app.latest_version && app.platforms?.length) {
+    // Browsing another platform's apps: say which platform it's for and open its page.
+    label = OS_LABEL[app.platforms[0]].toUpperCase();
+    onPress = () => router.push(`/app/${app.id}`);
+  } else if (!hasRelease) {
     label = 'VIEW';
     onPress = () => Linking.openURL(repoUrl(app.repo_full_name));
   } else if (downloaded) {

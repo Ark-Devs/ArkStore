@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { ScrollView, useWindowDimensions, View } from 'react-native';
 
+import { PlatformSwitcher } from '@/components/store/platform-switcher';
 import { CategoryIcon } from '@/components/store/category-icon';
 import { Shelf } from '@/components/store/shelf';
 import { FeatureCard } from '@/components/store/today-cards';
@@ -45,6 +46,7 @@ export default function AppsScreen() {
 
   return (
     <LargeTitleScreen title="Apps" refreshing={trending.isRefetching} onRefresh={refresh}>
+      <PlatformSwitcher />
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

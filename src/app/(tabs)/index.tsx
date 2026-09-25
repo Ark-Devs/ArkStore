@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { UserCircle } from 'phosphor-react-native/src/icons/UserCircle';
 import { View } from 'react-native';
 
+import { PlatformSwitcher } from '@/components/store/platform-switcher';
 import { CategoryCard, FeatureCard, ListCard } from '@/components/store/today-cards';
 import { Button } from '@/components/ui/button';
 import { EmptyState, LargeTitleScreen, Skeleton } from '@/components/ui/layout';
@@ -85,6 +86,7 @@ export default function TodayScreen() {
       refreshing={refreshing}
       onRefresh={refresh}
     >
+      <PlatformSwitcher />
       {popular.isLoading ? (
         <View style={{ paddingHorizontal: space.gutter, gap: 20 }}>
           <Skeleton style={{ height: 460, borderRadius: 22 }} />
