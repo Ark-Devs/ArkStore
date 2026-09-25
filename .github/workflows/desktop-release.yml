@@ -100,6 +100,7 @@ jobs:
           if-no-files-found: error
           path: |
             desktop/dist/*.exe
+            desktop/dist/*.msi
             desktop/dist/*.dmg
             desktop/dist/*.zip
             desktop/dist/*.AppImage
@@ -139,6 +140,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             dist/*.exe
+            dist/*.msi
             dist/*.dmg
             dist/*.zip
             dist/*.AppImage
