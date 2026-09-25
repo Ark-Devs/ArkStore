@@ -3,6 +3,7 @@
 // push access to organisation repos. It never goes into the database.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -89,7 +90,8 @@ export async function signInWithGitHub(): Promise<'signed-in' | 'cancelled' | 'r
   if (Platform.OS === 'web') {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
-      options: { redirectTo: `${window.location.origin}/auth-callback`, scopes: SCOPES },
+      // Include the site's base path (e.g. /ArkStore on GitHub Pages).
+      options: { redirectTo: `${window.location.origin}${Constants.expoConfig?.experiments?.baseUrl ?? ''}/auth-callback`, scopes: SCOPES },
     });
     if (error) throw error;
     return 'redirecting';

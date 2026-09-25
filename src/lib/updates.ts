@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 
 import { fetchAppsByIds } from './api';
 import { desktop } from './desktop';
+import { currentArkStoreVersion, fetchLatestArkStore, isNewerVersion } from './self-update';
 import { hasUpdate, useInstalled, type PendingUpdate } from './stores/installed';
 import { usePrefs } from './stores/prefs';
 
@@ -21,6 +22,7 @@ async function ensureHydrated() {
 
 export async function checkForUpdates({ notify }: { notify: boolean }): Promise<PendingUpdate[]> {
   await ensureHydrated();
+  if (notify && usePrefs.getState().notifyUpdates) await notifySelfUpdate().catch(() => undefined);
   const { apps, setUpdates } = useInstalled.getState();
   const ids = Object.keys(apps);
   const now = new Date().toISOString();
@@ -37,6 +39,35 @@ export async function checkForUpdates({ notify }: { notify: boolean }): Promise<
 
   if (notify && usePrefs.getState().notifyUpdates) await notifyNew(pending);
   return pending;
+}
+
+const SELF_KEY = 'arkstore';
+
+/** "ArkStore 1.3.0 is available", once per release, when ArkStore itself has a new version. */
+async function notifySelfUpdate() {
+  if (Platform.OS === 'web' && !desktop) return;
+  // The desktop updater announces the updates it downloads itself.
+  if (desktop && desktop.os !== 'macos') return;
+  const current = currentArkStoreVersion();
+  const latest = await fetchLatestArkStore();
+  if (!current || !latest || !isNewerVersion(latest.version, current)) return;
+  const os = desktop ? desktop.os : 'android';
+  if (!latest.files.some((f) => f.os === os)) return;
+  const { notified, markNotified } = useInstalled.getState();
+  if (notified[SELF_KEY] === latest.version) return;
+
+  const title = `ArkStore ${latest.version} is available`;
+  const body = desktop ? 'Click to get the new version.' : 'Tap to update ArkStore.';
+  if (desktop) {
+    desktop.notify(title, body, '/updates');
+  } else {
+    if (!(await Notifications.getPermissionsAsync()).granted) return;
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data: { url: '/updates' } },
+      trigger: Platform.OS === 'android' ? { channelId: CHANNEL } : null,
+    });
+  }
+  markNotified({ [SELF_KEY]: latest.version });
 }
 
 async function notifyNew(pending: PendingUpdate[]) {

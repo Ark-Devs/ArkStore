@@ -134,3 +134,49 @@ export async function updateArkStoreOnAndroid(release: ArkStoreRelease) {
     throw e;
   }
 }
+
+// ---------------------------------------------------------------------------
+// One answer for every platform: is a newer ArkStore out, and what does the button do?
+// ---------------------------------------------------------------------------
+
+export type ArkStoreUpdate =
+  /** Android: download the new APK and hand it to the installer. */
+  | { kind: 'install'; version: string; notes: string; release: ArkStoreRelease }
+  /** Desktop: electron-updater is fetching it in the background. */
+  | { kind: 'downloading'; version: string; progress: number }
+  /** Desktop: downloaded, a restart finishes the update. */
+  | { kind: 'restart'; version: string; notes: string }
+  /** Desktop builds that can't replace themselves (unsigned Mac, MSI, manual installs): get it from the download page. */
+  | { kind: 'download'; version: string; notes: string };
+
+const HOUR = 60 * 60 * 1000;
+
+/** Whether a newer ArkStore release is out for this device. Rechecks GitHub every hour. */
+export function useArkStoreUpdate(): ArkStoreUpdate | null {
+  const inApp = Boolean(desktop) || Platform.OS === 'android';
+  const latest = useQuery({
+    queryKey: ['arkstore-latest'],
+    queryFn: fetchLatestArkStore,
+    enabled: inApp,
+    staleTime: HOUR,
+    refetchInterval: HOUR,
+    retry: 1,
+  });
+  const status = useDesktopUpdate();
+  const release = latest.data;
+
+  if (desktop) {
+    if (status?.state === 'ready') return { kind: 'restart', version: status.version, notes: plain(status.notes) };
+    if (status?.state === 'downloading') return { kind: 'downloading', version: status.version, progress: status.progress };
+    if (status?.state === 'available') return { kind: 'downloading', version: status.version, progress: 0 };
+    const hasBuild = release?.files.some((f) => f.os === desktop!.os);
+    if (release && hasBuild && isNewerVersion(release.version, desktop.appVersion)) {
+      return { kind: 'download', version: release.version, notes: release.notes };
+    }
+    return null;
+  }
+  if (androidUpdateAvailable(release)) return { kind: 'install', version: release!.version, notes: release!.notes, release: release! };
+  return null;
+}
+
+const plain = (notes: string | null | undefined) => (notes ?? '').trim();

@@ -8,8 +8,10 @@ import type { Icon } from 'phosphor-react-native';
 import { Platform, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { UpdateBanner } from '@/components/store/update-banner';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
+import { useArkStoreUpdate } from '@/lib/self-update';
 import { useInstalled } from '@/lib/stores/installed';
 import { useColors } from '@/theme';
 
@@ -33,7 +35,8 @@ export function useSideBar() {
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
-  const updateCount = useInstalled((s) => Object.keys(s.updates).length);
+  // App updates plus ArkStore's own.
+  const updateCount = useInstalled((s) => Object.keys(s.updates).length) + (useArkStoreUpdate() ? 1 : 0);
   const side = useSideBar();
 
   return (
@@ -59,6 +62,10 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             }
       }
     >
+      {/* Floats above the bar on every tab. (Wide windows show it in the tabs layout instead.) */}
+      {side ? null : (
+        <UpdateBanner style={{ position: 'absolute', bottom: '100%', left: 12, right: 12, marginBottom: 10, zIndex: 10 }} />
+      )}
       {state.routes.map((route, index) => {
         const tab = TABS[route.name];
         if (!tab) return null;
