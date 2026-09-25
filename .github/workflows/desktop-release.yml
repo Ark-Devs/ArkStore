@@ -85,7 +85,7 @@ jobs:
           if [ -z "$CSC_LINK" ]; then
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             unset CSC_LINK CSC_KEY_PASSWORD
-            [ "$RUNNER_OS" = "macOS" ] && extra="-c.mac.identity=-"
+            if [ "$RUNNER_OS" = "macOS" ]; then extra="-c.mac.identity=-"; fi
           fi
           npx electron-builder ${{ matrix.target }} --publish never $extra
 
