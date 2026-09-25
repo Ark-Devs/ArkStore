@@ -30,6 +30,8 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
+      # Public: the GitHub OAuth app's client ID, for the "Approve on GitHub" link in Studio.
+      EXPO_PUBLIC_GITHUB_CLIENT_ID: ${{ vars.GITHUB_CLIENT_ID || 'Ov23li33ek4PVfnoVtV0' }}
     steps:
       - name: Check Supabase settings
         run: |

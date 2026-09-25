@@ -19,15 +19,38 @@ export type ListingInput = {
 };
 
 /** Public repos the signed-in developer can publish, most recently pushed first. */
-export async function listMyRepos(token: string): Promise<GitHubRepo[]> {
-  const res = await fetch(
-    'https://api.github.com/user/repos?sort=pushed&per_page=100&affiliation=owner,collaborator,organization_member',
-    { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}` } },
-  );
+async function ghList<T>(path: string, token: string): Promise<T[]> {
+  const res = await fetch(`https://api.github.com${path}`, {
+    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}` },
+  });
   if (!res.ok) throw new Error(res.status === 401 ? 'github_token_expired' : `GitHub returned ${res.status}`);
-  const repos = (await res.json()) as GitHubRepo[];
-  return repos.filter((r) => !r.private && !r.archived);
+  return (await res.json()) as T[];
 }
+
+/**
+ * Public repos you can publish: your own, ones you collaborate on, and every organization you
+ * belong to. Organizations that restrict third-party apps only show up once an owner approves
+ * ArkStore on GitHub (see GITHUB_APP_ACCESS_URL).
+ */
+export async function listMyRepos(token: string): Promise<GitHubRepo[]> {
+  const [mine, orgs] = await Promise.all([
+    ghList<GitHubRepo>('/user/repos?sort=pushed&per_page=100&affiliation=owner,collaborator,organization_member', token),
+    ghList<{ login: string }>('/user/orgs?per_page=100', token).catch(() => []),
+  ]);
+  const orgRepos = await Promise.all(
+    orgs.map((o) => ghList<GitHubRepo>(`/orgs/${o.login}/repos?type=public&sort=pushed&per_page=100`, token).catch(() => [])),
+  );
+  const seen = new Set<string>();
+  return [...mine, ...orgRepos.flat()]
+    .filter((r) => !r.private && !r.archived)
+    .filter((r) => (seen.has(r.full_name) ? false : (seen.add(r.full_name), true)))
+    .sort((a, b) => Date.parse(b.pushed_at ?? '0') - Date.parse(a.pushed_at ?? '0'));
+}
+
+/** Where an organization owner approves ArkStore's GitHub sign-in for their organization. */
+export const GITHUB_APP_ACCESS_URL = process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID
+  ? `https://github.com/settings/connections/applications/${process.env.EXPO_PUBLIC_GITHUB_CLIENT_ID}`
+  : 'https://github.com/settings/applications';
 
 /** Create a listing, update your own, or claim a curated one. Ownership is checked in the database. */
 export async function publishApp(input: ListingInput, githubToken: string | null): Promise<StoreApp> {
