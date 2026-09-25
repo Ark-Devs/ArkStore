@@ -26,10 +26,19 @@ publish:
 
 win:
   target:
-    # x64 also runs on Windows on Arm (emulated).
+    # x64 also runs on Windows on Arm (emulated). The .exe updates itself; the .msi is for
+    # people and IT departments who prefer MSI (it updates by installing a newer MSI).
     - target: nsis
       arch: [x64]
+    - target: msi
+      arch: [x64]
   artifactName: ArkStore-${version}-windows-${arch}-setup.${ext}
+msi:
+  artifactName: ArkStore-${version}-windows-${arch}.${ext}
+  oneClick: false
+  perMachine: false
+  createDesktopShortcut: true
+  shortcutName: ArkStore
 nsis:
   oneClick: false
   perMachine: false
