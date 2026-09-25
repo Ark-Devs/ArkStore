@@ -1,0 +1,35 @@
+# Attaches APKs an Android release run already built to a GitHub release, without building
+# again. Use it when a build succeeded but attaching failed: Actions > Attach APKs > Run.
+name: Attach APKs
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: ID of the Android release run whose APKs to attach
+        required: true
+      tag:
+        description: Release tag (e.g. v1.2.0)
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: arkstore-apks
+          path: dist
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          gh release upload "${{ inputs.tag }}" dist/*.apk --clobber --repo "${{ github.repository }}"
