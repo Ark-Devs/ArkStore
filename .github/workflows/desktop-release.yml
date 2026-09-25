@@ -79,9 +79,15 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # No certificate: build unsigned instead of failing.
-          [ -z "$CSC_LINK" ] && export CSC_IDENTITY_AUTO_DISCOVERY=false && unset CSC_LINK CSC_KEY_PASSWORD
-          npx electron-builder ${{ matrix.target }} --publish never
+          # No certificate: build unsigned instead of failing (ad-hoc signed on macOS, which
+          # Apple silicon needs to run the app at all).
+          extra=""
+          if [ -z "$CSC_LINK" ]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            unset CSC_LINK CSC_KEY_PASSWORD
+            [ "$RUNNER_OS" = "macOS" ] && extra="-c.mac.identity=-"
+          fi
+          npx electron-builder ${{ matrix.target }} --publish never $extra
 
       - uses: actions/upload-artifact@v4
         with:
