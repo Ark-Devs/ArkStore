@@ -1,0 +1,63 @@
+# Publishes the ArkStore web app to GitHub Pages, including the Get ArkStore page:
+#   https://ark-devs.github.io/ArkStore/download/
+# Runs on every push to main. One-time setup: Settings > Pages > Source: GitHub Actions.
+# Uses the same EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_KEY secrets as the releases.
+name: Web (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
+      # Project pages live under /<repo>/.
+      EXPO_BASE_URL: /${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --include=dev --no-audit --no-fund
+
+      - name: Build the web app
+        run: npx expo export -p web --output-dir dist-web
+
+      # Pages has no rewrites: give /download its own copy of the app, and let 404.html
+      # load the app for every other route (/app/<id>, /search, ...).
+      - name: Routes
+        run: |
+          mkdir -p dist-web/download
+          cp dist-web/index.html dist-web/download/index.html
+          cp dist-web/index.html dist-web/404.html
+          touch dist-web/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}download/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
