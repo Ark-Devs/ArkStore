@@ -1,8 +1,9 @@
-# Publishes the ArkStore web app to GitHub Pages, including the Get ArkStore page:
+# Builds the Get ArkStore download page and commits it to the `deploy` branch, which holds
+# nothing else. GitHub Pages serves that branch:
 #   https://ark-devs.github.io/ArkStore/download/
-# Runs on every push to main. One-time setup: Settings > Pages > Source: GitHub Actions.
+# One-time setup: Settings > Pages > Source: Deploy from a branch > `deploy` / (root).
 # Uses the same EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_KEY secrets as the releases.
-name: Web (GitHub Pages)
+name: Download page
 
 on:
   push:
@@ -10,12 +11,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: download-page
   cancel-in-progress: true
 
 jobs:
@@ -36,28 +35,31 @@ jobs:
 
       - run: npm ci --include=dev --no-audit --no-fund
 
-      - name: Build the web app
+      - name: Build
         run: npx expo export -p web --output-dir dist-web
 
-      # Pages has no rewrites: give /download its own copy of the app, and let 404.html
-      # load the app for every other route (/app/<id>, /search, ...).
-      - name: Routes
+      # The page lives at /download/; the site root and unknown paths send people there.
+      - name: Lay out the site
         run: |
-          mkdir -p dist-web/download
-          cp dist-web/index.html dist-web/download/index.html
-          cp dist-web/index.html dist-web/404.html
-          touch dist-web/.nojekyll
+          base="$EXPO_BASE_URL"
+          mkdir -p site/download
+          cp -r dist-web/_expo dist-web/favicon.ico site/
+          [ -d dist-web/assets ] && cp -r dist-web/assets site/
+          cp dist-web/index.html site/download/index.html
+          redirect() {
+            printf '<!doctype html>\n<meta charset="utf-8">\n<title>Get ArkStore</title>\n<meta http-equiv="refresh" content="0; url=%s">\n<link rel="canonical" href="%s">\n<a href="%s">Get ArkStore</a>\n' "$1" "$1" "$1"
+          }
+          redirect ./download/ > site/index.html
+          redirect "$base/download/" > site/404.html
+          touch site/.nojekyll
+          printf '# ArkStore download page (generated)\n\nThis branch holds only the built Get ArkStore page, served by GitHub Pages at\nhttps://ark-devs.github.io/ArkStore/download/\n\nDon'"'"'t edit it by hand: `.github/workflows/pages.yml` on `main` rebuilds it from\n`src/app/download.tsx` on every push to main.\n' > site/README.md
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist-web
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}download/
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Commit to the deploy branch
+        working-directory: site
+        run: |
+          git init -q -b deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Get ArkStore download page (built from ${GITHUB_SHA::7})"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" deploy
