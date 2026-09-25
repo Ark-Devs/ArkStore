@@ -129,20 +129,17 @@ jobs:
 
       - run: ls -la dist
 
-      # Same release as the Android workflow; whichever finishes first creates it.
+      # Same release as the Android workflow: whichever finishes first creates it, the other
+      # uploads its files (editing an existing release is refused to workflow tokens).
       - name: Attach to the GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: ArkStore ${{ steps.tag.outputs.tag }}
-          body_path: release-notes/${{ steps.tag.outputs.tag }}.md
-          fail_on_unmatched_files: true
-          files: |
-            dist/*.exe
-            dist/*.msi
-            dist/*.dmg
-            dist/*.zip
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.blockmap
-            dist/latest*.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.msi dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/*.blockmap dist/latest*.yml)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" --title "ArkStore $TAG" --notes-file "release-notes/$TAG.md" --target "$GITHUB_SHA"
+          fi
