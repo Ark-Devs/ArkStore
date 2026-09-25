@@ -17,6 +17,9 @@ type Prefs = {
   installerCleanup: InstallerCleanup;
   /** Measured APK download speed on this phone (bytes/second), smoothed across downloads. */
   downloadSpeed: number | null;
+  /** ArkStore version whose update banner the person dismissed ("Later"). */
+  hiddenSelfUpdate: string | null;
+  hideSelfUpdate: (version: string) => void;
   setTheme: (t: ThemePref) => void;
   recordDownloadSpeed: (bytesPerSecond: number) => void;
   setBuildOverride: (appId: string, assetName: string | null) => void;
@@ -36,6 +39,8 @@ export const usePrefs = create<Prefs>()(
       notifyUpdates: true,
       installerCleanup: 'ask',
       downloadSpeed: null,
+      hiddenSelfUpdate: null,
+      hideSelfUpdate: (hiddenSelfUpdate) => set({ hiddenSelfUpdate }),
       setTheme: (theme) => set({ theme }),
       // Weighted toward recent downloads, so a switch from Wi-Fi to mobile data shows up quickly.
       recordDownloadSpeed: (bps) =>

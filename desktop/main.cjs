@@ -297,9 +297,17 @@ function setupUpdates() {
   // Unsigned macOS builds can't replace themselves, for example: the app offers the download page.
   autoUpdater.on('error', (err) => setUpdateStatus({ state: 'error', message: String(err?.message || err), version: latestVersion || undefined }));
 
-  const check = () => autoUpdater.checkForUpdates().catch(() => undefined);
+  let lastCheck = 0;
+  const check = () => {
+    lastCheck = Date.now();
+    autoUpdater.checkForUpdates().catch(() => undefined);
+  };
   setTimeout(check, 10_000);
   setInterval(check, 6 * 60 * 60 * 1000);
+  // Coming back to ArkStore picks up a release published since, at most once an hour.
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastCheck > 60 * 60 * 1000) check();
+  });
 }
 
 ipcMain.handle('update-status', () => updateStatus);
