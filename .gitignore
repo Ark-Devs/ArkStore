@@ -29,6 +29,8 @@ expo-env.d.ts
 
 # Build output
 build/
+# The desktop app's icon lives here (electron-builder buildResources).
+!/desktop/build/
 .gradle/
 *.apk
 *.aab
