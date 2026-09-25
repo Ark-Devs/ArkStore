@@ -104,6 +104,27 @@ jobs:
           fi
           npx electron-builder ${{ matrix.target }} --publish never $extra
 
+      # Microsoft Store: set the repository variables MS_STORE_IDENTITY_NAME, MS_STORE_PUBLISHER
+      # and MS_STORE_PUBLISHER_NAME from Partner Center > Product identity. The .appx is a build
+      # artifact to upload in Partner Center, not a release file.
+      - name: Microsoft Store package
+        if: runner.os == 'Windows' && vars.MS_STORE_IDENTITY_NAME != ''
+        working-directory: desktop
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: >
+          npx electron-builder --win appx --x64 --publish never
+          -c.appx.identityName="${{ vars.MS_STORE_IDENTITY_NAME }}"
+          -c.appx.publisher="${{ vars.MS_STORE_PUBLISHER }}"
+          -c.appx.publisherDisplayName="${{ vars.MS_STORE_PUBLISHER_NAME }}"
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows' && vars.MS_STORE_IDENTITY_NAME != ''
+        with:
+          name: arkstore-microsoft-store
+          path: desktop/dist/*.appx
+
       - uses: actions/upload-artifact@v4
         with:
           name: arkstore-${{ runner.os }}
