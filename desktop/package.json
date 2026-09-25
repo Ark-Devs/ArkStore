@@ -1,0 +1,26 @@
+{
+  "name": "arkstore-desktop",
+  "productName": "ArkStore",
+  "version": "1.1.0",
+  "description": "ArkStore for Windows, macOS and Linux: apps from GitHub, installed and kept up to date.",
+  "homepage": "https://github.com/Ark-Devs/ArkStore",
+  "author": "Ark-Devs",
+  "license": "MIT",
+  "private": true,
+  "main": "main.cjs",
+  "desktopName": "arkstore.desktop",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env ARKSTORE_DEV_URL=http://localhost:8081 electron .",
+    "dist": "electron-builder --publish never",
+    "check": "node --check main.cjs && node --check preload.cjs && node --check installer.cjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  }
+}

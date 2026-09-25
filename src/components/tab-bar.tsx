@@ -5,7 +5,7 @@ import { MagnifyingGlass } from 'phosphor-react-native/src/icons/MagnifyingGlass
 import { Newspaper } from 'phosphor-react-native/src/icons/Newspaper';
 import { SquaresFour } from 'phosphor-react-native/src/icons/SquaresFour';
 import type { Icon } from 'phosphor-react-native';
-import { View } from 'react-native';
+import { Platform, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Tap } from '@/components/ui/tap';
@@ -23,22 +23,41 @@ const TABS: Record<string, { label: string; icon: Icon }> = {
   studio: { label: 'Studio', icon: Code },
 };
 
+/** Wide windows (the desktop app, a browser on a computer) get a sidebar instead of a bottom bar. */
+export function useSideBar() {
+  const { width } = useWindowDimensions();
+  return Platform.OS === 'web' && width >= 900;
+}
+
 /** Nothing-style bar: thin glyphs, mono labels, a red dot over the active tab. */
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const updateCount = useInstalled((s) => Object.keys(s.updates).length);
+  const side = useSideBar();
 
   return (
     <View
-      style={{
-        flexDirection: 'row',
-        backgroundColor: c.bg,
-        borderTopWidth: 1,
-        borderTopColor: c.line,
-        paddingBottom: Math.max(insets.bottom, 10),
-        paddingTop: 6,
-      }}
+      style={
+        side
+          ? {
+              width: 92,
+              flexDirection: 'column',
+              backgroundColor: c.bg,
+              borderRightWidth: 1,
+              borderRightColor: c.line,
+              paddingTop: insets.top + 24,
+              gap: 18,
+            }
+          : {
+              flexDirection: 'row',
+              backgroundColor: c.bg,
+              borderTopWidth: 1,
+              borderTopColor: c.line,
+              paddingBottom: Math.max(insets.bottom, 10),
+              paddingTop: 6,
+            }
+      }
     >
       {state.routes.map((route, index) => {
         const tab = TABS[route.name];
@@ -57,7 +76,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
               if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
             }}
-            style={{ flex: 1, alignItems: 'center', gap: 3, paddingTop: 4 }}
+            style={side ? { alignItems: 'center', gap: 3, paddingVertical: 6 } : { flex: 1, alignItems: 'center', gap: 3, paddingTop: 4 }}
           >
             <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: focused ? c.accent : 'transparent', marginBottom: 2 }} />
             <View>

@@ -2,9 +2,10 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { chooseApkForDevice, pickApk } from '../src/lib/github/apk';
+import { bestAsset, installableAssets, platformsOf, rankAssets, type ReleaseFile } from '../src/lib/github/assets';
 import { suggestCategory } from '../src/lib/github/category';
 import {
-  apkReleases,
+  installableReleases,
   currentRelease,
   detectRepo,
   prettifyRepoName,
@@ -131,7 +132,7 @@ describe('release helpers', () => {
     assert.equal(prettifyRepoName('web-to-app'), 'Web To App');
   });
 
-  test('apkReleases skips drafts and APK-less releases; currentRelease prefers stable', () => {
+  test('installableReleases skips drafts and releases with nothing to install; currentRelease prefers stable', () => {
     const rel = (tag: string, extra: Partial<GitHubRelease> = {}, assets = [`${tag}.apk`]): GitHubRelease => ({
       tag_name: tag,
       name: tag,
@@ -143,7 +144,7 @@ describe('release helpers', () => {
       assets: assets.map((name) => ({ name, size: 1, browser_download_url: name })),
       ...extra,
     });
-    const out = apkReleases([
+    const out = installableReleases([
       rel('v3', { prerelease: true, published_at: '2026-03-01T00:00:00Z' }),
       rel('v2.1', { published_at: '2026-02-01T00:00:00Z' }, ['server.tar.gz']),
       rel('v2', { published_at: '2026-02-01T00:00:00Z' }),
@@ -153,7 +154,7 @@ describe('release helpers', () => {
     assert.deepEqual(out.map((r) => r.version), ['v3', 'v2', 'v1']);
     assert.equal(currentRelease(out)?.version, 'v2', 'stable wins over a newer beta');
 
-    const betasOnly = apkReleases([
+    const betasOnly = installableReleases([
       rel('v0.2-beta', { prerelease: true, published_at: '2026-02-01T00:00:00Z' }),
       rel('v0.1-beta', { prerelease: true }),
     ]);
@@ -243,7 +244,7 @@ describe('detectRepo', () => {
     assert.equal(d.packageName, 'dev.ark.dbcrawler');
     assert.equal(d.minSdk, 26);
     assert.equal(d.release?.version, 'v0.3.0');
-    assert.equal(d.release?.apk.name, 'db-crawler-universal.apk');
+    assert.equal(d.release?.apk?.name, 'db-crawler-universal.apk');
     assert.equal(
       d.iconCandidates[0],
       'https://raw.githubusercontent.com/Ark-Devs/DB-Crawler/main/fastlane/metadata/android/en-US/images/icon.png',
@@ -255,5 +256,58 @@ describe('detectRepo', () => {
       'phone screenshots only, natural order',
     );
     assert.ok(!requested.some((u) => u.includes('api.github.com') && u.includes('/readme')), 'README read via raw');
+  });
+});
+
+describe('desktop builds', () => {
+  const files = (names: string[]): ReleaseFile[] =>
+    installableAssets(names.map((name, i) => ({ name, size: 100 + i, browser_download_url: `https://x/${name}` })));
+  const electronRelease = files([
+    'App-Setup-1.0.0.exe',
+    'App-1.0.0-arm64-setup.exe',
+    'App-1.0.0-portable.exe',
+    'App-1.0.0-x64.msi',
+    'App-1.0.0-x64.dmg',
+    'App-1.0.0-arm64.dmg',
+    'App-1.0.0-mac-arm64.zip',
+    'App-1.0.0-x86_64.AppImage',
+    'App-1.0.0-arm64.AppImage',
+    'app_1.0.0_amd64.deb',
+    'app-1.0.0.x86_64.rpm',
+    'app-release.apk',
+    'latest.yml',
+    'App-Setup-1.0.0.exe.blockmap',
+  ]);
+  const pick = (os: any, arch: any, linuxPackage: any = null) => bestAsset(electronRelease, { os, arch, linuxPackage })?.name;
+
+  test('checksums, update manifests and blockmaps are not installers', () => {
+    assert.equal(electronRelease.length, 12);
+    assert.deepEqual(platformsOf(electronRelease), ['android', 'windows', 'macos', 'linux']);
+  });
+
+  test('Windows gets the installer for its CPU, not the portable build', () => {
+    assert.equal(pick('windows', 'x64'), 'App-Setup-1.0.0.exe');
+    assert.equal(pick('windows', 'arm64'), 'App-1.0.0-arm64-setup.exe');
+    assert.equal(pick('windows', null), 'App-Setup-1.0.0.exe');
+  });
+
+  test('Macs get the disk image for their chip, Intel builds as a fallback on Apple silicon', () => {
+    assert.equal(pick('macos', 'arm64'), 'App-1.0.0-arm64.dmg');
+    assert.equal(pick('macos', 'x64'), 'App-1.0.0-x64.dmg');
+    const intelOnly = files(['Old-1.0-x64.dmg']);
+    assert.equal(bestAsset(intelOnly, { os: 'macos', arch: 'arm64' })?.name, 'Old-1.0-x64.dmg', 'Rosetta runs it');
+  });
+
+  test('Linux prefers the AppImage, or the distro package format when known', () => {
+    assert.equal(pick('linux', 'x64'), 'App-1.0.0-x86_64.AppImage');
+    assert.equal(pick('linux', 'arm64'), 'App-1.0.0-arm64.AppImage');
+    assert.equal(pick('linux', 'x64', 'deb'), 'app_1.0.0_amd64.deb');
+    assert.equal(pick('linux', 'x64', 'rpm'), 'app-1.0.0.x86_64.rpm');
+    // An x64 .deb must never be offered to an ARM machine.
+    assert.ok(!rankAssets(electronRelease, { os: 'linux', arch: 'arm64' }).some((f) => f.name.endsWith('.deb')));
+  });
+
+  test('nothing for a platform means no pick', () => {
+    assert.equal(bestAsset(files(['a.apk']), { os: 'windows', arch: 'x64' }), null);
   });
 });

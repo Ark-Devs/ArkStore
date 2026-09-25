@@ -6,13 +6,16 @@
 // If the person backs out of the installer, the file stays and the button becomes INSTALL.
 // Once an install is confirmed the file isn't needed: ArkStore asks to delete it (or does,
 // per the person's setting), and reconcileInstallers() tidies up anything left behind.
+// The desktop app follows the same two steps with the platform's installer (see the Desktop
+// section below and desktop/installer.cjs).
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { Alert, Linking, Platform } from 'react-native';
 
 import { recordDownload } from './api';
-import { chooseBuild } from './device';
+import { desktop } from './desktop';
+import { chooseBuild, pickDownload } from './device';
 import { fileSize } from './format';
 import { useInstalled } from './stores/installed';
 import { installerStatus, isNeeded, useInstallers, type InstallerFile } from './stores/installers';
@@ -50,6 +53,23 @@ export async function isPackageInstalled(packageName: string | null | undefined)
   }
 }
 
+/** OPEN: launches an installed app. False when ArkStore doesn't know how to open it. */
+export function openApp(app: Pick<ListApp, 'id' | 'package_name'>): boolean {
+  if (desktop) {
+    const path = useInstalled.getState().apps[app.id]?.launchPath;
+    if (!path) return false;
+    desktop.launch(path).catch(() => undefined);
+    return true;
+  }
+  return openInstalledApp(app.package_name);
+}
+
+/** Whether OPEN can work for an installed app on this device. */
+export function canOpen(app: Pick<ListApp, 'id' | 'package_name'>, launchPath?: string | null): boolean {
+  if (desktop) return Boolean(launchPath);
+  return Platform.OS === 'android' && Boolean(app.package_name);
+}
+
 export function openInstalledApp(packageName: string | null | undefined): boolean {
   if (Platform.OS !== 'android' || !packageName) return false;
   try {
@@ -75,7 +95,8 @@ function deleteFile(uri: string) {
 
 export function deleteInstaller(appId: string) {
   const file = useInstallers.getState().files[appId];
-  if (file) deleteFile(file.uri);
+  if (file && desktop) desktop.remove(file.uri).catch(() => undefined);
+  else if (file) deleteFile(file.uri);
   useInstallers.getState().remove(appId);
 }
 
@@ -224,7 +245,7 @@ export async function downloadApp(app: ListApp): Promise<InstallerFile | null> {
 // Step 2: install
 // ---------------------------------------------------------------------------
 
-async function launchInstaller(uri: string): Promise<boolean | null> {
+export async function launchInstaller(uri: string): Promise<boolean | null> {
   const contentUri = new File(uri).contentUri;
   try {
     const result = await IntentLauncher.startActivityAsync(INSTALL_PACKAGE, {
@@ -246,6 +267,7 @@ async function launchInstaller(uri: string): Promise<boolean | null> {
 }
 
 export async function installFromFile(file: InstallerFile, kind: 'install' | 'update'): Promise<InstallOutcome> {
+  if (desktop) return desktopInstall(file, kind);
   if (!new File(file.uri).exists) {
     useInstallers.getState().remove(file.appId);
     throw new Error('The downloaded file is gone. Tap Get to download it again.');
@@ -281,11 +303,18 @@ export async function installApp(app: ListApp, kind: 'install' | 'update'): Prom
   if (busy === 'downloading' || busy === 'installing') return 'cancelled';
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 
+  if (desktop) {
+    const file = await desktopDownload(app);
+    if (!file) return 'cancelled';
+    return desktopInstall(file, kind);
+  }
+
   if (Platform.OS !== 'android') {
-    // Browsers and iPhones can't install APKs: hand the file to the browser as a download.
-    const build = chooseBuild(app.apk_assets, { name: app.apk_name, url: app.apk_url, size: app.apk_size }, usePrefs.getState().buildOverride[app.id]);
+    // Browsers and iPhones can't install anything: hand the file for the visitor's device
+    // (or the APK, to put on a phone) to the browser as a download.
+    const build = pickDownload(app, usePrefs.getState().buildOverride[app.id]);
     if (!build) throw new Error('This app has no downloadable release yet.');
-    await Linking.openURL(build.asset.url);
+    await Linking.openURL(build.url);
     await count(app.id, 'download', app.latest_version);
     return 'downloaded';
   }
@@ -298,4 +327,104 @@ export async function installApp(app: ListApp, kind: 'install' | 'update'): Prom
 export function cancelDownload(appId: string) {
   useTasks.getState().tasks[appId]?.abort?.();
   useTasks.getState().set(appId, null);
+}
+
+// ---------------------------------------------------------------------------
+// Desktop (Windows, macOS, Linux): the Electron shell downloads into its installers folder
+// and runs the platform's installer (see desktop/installer.cjs).
+// ---------------------------------------------------------------------------
+
+async function desktopDownload(app: ListApp): Promise<InstallerFile | null> {
+  const bridge = desktop!;
+  const existing = readyInstaller(app);
+  if (existing && (await bridge.exists(existing.uri))) return existing;
+
+  const pick = pickDownload(app, usePrefs.getState().buildOverride[app.id]);
+  if (!pick || !app.latest_version) throw new Error(`${app.name} has no build for this computer yet.`);
+
+  useTasks.getState().set(app.id, { status: 'downloading', progress: 0, abort: () => bridge.cancelDownload(app.id) });
+  const startedAt = Date.now();
+  const stop = bridge.onDownloadProgress((id, received, totalBytes) => {
+    if (id !== app.id) return;
+    const total = totalBytes > 0 ? totalBytes : pick.size;
+    const elapsed = (Date.now() - startedAt) / 1000;
+    const speed = elapsed >= 1 && received > 0 ? received / elapsed : null;
+    const eta = speed && total > 0 ? Math.max(0, (total - received) / speed) : null;
+    useTasks.getState().progress(app.id, total > 0 ? Math.min(1, received / total) : -1, eta);
+  });
+
+  try {
+    const safe = `${app.id}-${app.latest_version}-${pick.name}`.replace(/[^A-Za-z0-9._-]/g, '_');
+    const result = await bridge.download(app.id, pick.url, safe);
+    if (!result) return null;
+    const seconds = (Date.now() - startedAt) / 1000;
+    const bytes = result.size || pick.size;
+    if (seconds >= 1 && bytes >= 512 * 1024) usePrefs.getState().recordDownloadSpeed(bytes / seconds);
+    const entry: InstallerFile = {
+      appId: app.id,
+      name: app.name,
+      iconUrl: app.icon_url,
+      packageName: app.package_name,
+      version: app.latest_version,
+      publishedAt: app.latest_published_at,
+      assetName: pick.name,
+      uri: result.path,
+      size: bytes,
+      downloadedAt: new Date().toISOString(),
+    };
+    const replaced = useInstallers.getState().put(entry);
+    if (replaced) bridge.remove(replaced.uri).catch(() => undefined);
+    await count(app.id, 'download', app.latest_version);
+    return entry;
+  } catch (e) {
+    useTasks.getState().set(app.id, { status: 'error', progress: 0, error: (e as Error).message });
+    throw e;
+  } finally {
+    stop();
+    if (useTasks.getState().tasks[app.id]?.status === 'downloading') useTasks.getState().set(app.id, null);
+  }
+}
+
+async function desktopInstall(file: InstallerFile, kind: 'install' | 'update'): Promise<InstallOutcome> {
+  const bridge = desktop!;
+  if (!(await bridge.exists(file.uri))) {
+    useInstallers.getState().remove(file.appId);
+    throw new Error('The downloaded file is gone. Click Get to download it again.');
+  }
+  useTasks.getState().set(file.appId, { status: 'installing', progress: 1 });
+  try {
+    const result = await bridge.install(file.uri, { name: file.name, iconUrl: file.iconUrl });
+    if (result.outcome === 'cancelled') return 'cancelled';
+
+    const previous = useInstalled.getState().apps[file.appId];
+    useInstalled.getState().markInstalled({
+      appId: file.appId,
+      name: file.name,
+      iconUrl: file.iconUrl,
+      packageName: file.packageName,
+      version: file.version,
+      publishedAt: file.publishedAt,
+      assetName: file.assetName,
+      installedAt: new Date().toISOString(),
+      launchPath: result.launchPath ?? previous?.launchPath ?? null,
+    });
+    // Another installer took over (MSIX, PKG, a software center): remember the version so
+    // updates are tracked, but only count installs ArkStore saw finish.
+    if (result.outcome === 'handed-off') return 'handed-off';
+
+    await count(file.appId, kind, file.version);
+    if (usePrefs.getState().installerCleanup !== 'keep') deleteInstaller(file.appId);
+    return 'installed';
+  } finally {
+    useTasks.getState().set(file.appId, null);
+  }
+}
+
+/** Forget desktop apps whose files were removed outside ArkStore (a deleted .app or AppImage). */
+export async function reconcileDesktopApps() {
+  if (!desktop) return;
+  const { apps, forget } = useInstalled.getState();
+  for (const app of Object.values(apps)) {
+    if (app.launchPath && !(await desktop.exists(app.launchPath))) forget(app.appId);
+  }
 }

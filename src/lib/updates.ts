@@ -7,6 +7,7 @@ import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
 import { fetchAppsByIds } from './api';
+import { desktop } from './desktop';
 import { hasUpdate, useInstalled, type PendingUpdate } from './stores/installed';
 import { usePrefs } from './stores/prefs';
 
@@ -39,12 +40,14 @@ export async function checkForUpdates({ notify }: { notify: boolean }): Promise<
 }
 
 async function notifyNew(pending: PendingUpdate[]) {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web' && !desktop) return;
   const { notified, markNotified } = useInstalled.getState();
   const fresh = pending.filter((u) => notified[u.appId] !== u.app.latest_version);
   if (fresh.length === 0) return;
-  const { granted } = await Notifications.getPermissionsAsync();
-  if (!granted) return;
+  if (!desktop) {
+    const { granted } = await Notifications.getPermissionsAsync();
+    if (!granted) return;
+  }
 
   const first = fresh[0].app;
   const content =
@@ -60,10 +63,15 @@ async function notifyNew(pending: PendingUpdate[]) {
           data: { url: '/updates' },
         };
 
-  await Notifications.scheduleNotificationAsync({
-    content,
-    trigger: Platform.OS === 'android' ? { channelId: CHANNEL } : null,
-  });
+  if (desktop) {
+    const body = fresh.length === 1 ? `Version ${first.latest_version} is ready. Click to update.` : content.body;
+    desktop.notify(content.title, body, content.data.url);
+  } else {
+    await Notifications.scheduleNotificationAsync({
+      content,
+      trigger: Platform.OS === 'android' ? { channelId: CHANNEL } : null,
+    });
+  }
   markNotified(Object.fromEntries(fresh.map((u) => [u.appId, u.app.latest_version ?? ''])));
 }
 

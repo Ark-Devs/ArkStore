@@ -4,22 +4,28 @@ import { router } from 'expo-router';
 import { Bell } from 'phosphor-react-native/src/icons/Bell';
 import { CircleHalf } from 'phosphor-react-native/src/icons/CircleHalf';
 import { Cpu } from 'phosphor-react-native/src/icons/Cpu';
+import { DownloadSimple } from 'phosphor-react-native/src/icons/DownloadSimple';
 import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
 import { Moon } from 'phosphor-react-native/src/icons/Moon';
 import { SignOut } from 'phosphor-react-native/src/icons/SignOut';
 import { Sun } from 'phosphor-react-native/src/icons/Sun';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, Switch, View } from 'react-native';
+import { Platform, ScrollView, Switch, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { DotGrid, DotRule } from '@/components/ui/dots';
+import { DeviceList } from '@/components/store/device-list';
 import { InstallerList } from '@/components/store/installer-storage';
 import { Chip, SectionHeader } from '@/components/ui/layout';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
+import { showAlert } from '@/lib/alert';
 import { githubProfile, signInWithGitHub, signOut, useAuth } from '@/lib/auth';
+import { desktop } from '@/lib/desktop';
 import { abiLabel, deviceAbis } from '@/lib/device';
+import { archLabel, OS_LABEL } from '@/lib/github/assets';
+import { currentArkStoreVersion } from '@/lib/self-update';
 import { useInstalled } from '@/lib/stores/installed';
 import { usePrefs, type InstallerCleanup, type ThemePref } from '@/lib/stores/prefs';
 import { friendlyError } from '@/lib/supabase';
@@ -72,11 +78,12 @@ export default function AccountScreen() {
   const abis = deviceAbis();
 
   useEffect(() => {
-    notificationsAllowed().then(setAllowed);
+    if (desktop) setAllowed(true);
+    else notificationsAllowed().then(setAllowed);
   }, []);
 
   const toggleNotify = async (on: boolean) => {
-    if (on && !allowed) {
+    if (on && !allowed && !desktop) {
       const ok = await askForNotifications();
       setAllowed(ok);
       if (!ok) return;
@@ -130,7 +137,7 @@ export default function AccountScreen() {
                   try {
                     await signInWithGitHub();
                   } catch (e) {
-                    Alert.alert("Couldn't sign in", friendlyError(e));
+                    showAlert("Couldn't sign in", friendlyError(e));
                   } finally {
                     setBusy(false);
                   }
@@ -139,6 +146,28 @@ export default function AccountScreen() {
             )}
           </View>
         </View>
+
+        {session ? (
+          <>
+            <SectionHeader title="Signed-in devices" />
+            <DeviceList uid={session.user.id} />
+            <View style={{ height: 24 }} />
+          </>
+        ) : null}
+
+        <Tap
+          onPress={() => router.push('/download')}
+          accessibilityRole="link"
+          style={{ marginHorizontal: space.gutter, marginBottom: 24, borderRadius: radius.tile, backgroundColor: c.surface, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+        >
+          <DownloadSimple size={24} color={c.accent} weight="light" />
+          <View style={{ flex: 1 }}>
+            <Txt variant="subhead">Get ArkStore on your other devices</Txt>
+            <Txt variant="callout" color="text2">
+              Android, Windows, macOS and Linux. Sign in with the same GitHub account.
+            </Txt>
+          </View>
+        </Tap>
 
         <SectionHeader title="Appearance" />
         <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: space.gutter }}>
@@ -173,7 +202,7 @@ export default function AccountScreen() {
         <View style={{ height: 24 }} />
         <SectionHeader title="Updates" />
         <View style={{ paddingHorizontal: space.gutter }}>
-          {Platform.OS !== 'web' ? (
+          {Platform.OS !== 'web' || desktop ? (
             <Row label="Notify me about updates">
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Bell size={18} color={c.text2} />
@@ -213,26 +242,49 @@ export default function AccountScreen() {
           </>
         ) : null}
 
-        <View style={{ height: 24 }} />
-        <SectionHeader title="This phone" />
-        <View style={{ paddingHorizontal: space.gutter }}>
-          <Row label="CPU">
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Cpu size={16} color={c.text2} />
-              <Txt variant="mono" color="text2">
-                {abis.length ? abis.map(abiLabel).join(' / ') : 'not an Android phone'}
+        {desktop ? (
+          <>
+            <View style={{ height: 24 }} />
+            <SectionHeader title="This computer" />
+            <View style={{ paddingHorizontal: space.gutter }}>
+              <Row label="System" value={`${OS_LABEL[desktop.os]} ${desktop.osVersion}`} />
+              <Row label="CPU">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Cpu size={16} color={c.text2} />
+                  <Txt variant="mono" color="text2">
+                    {archLabel(desktop.arch)}
+                  </Txt>
+                </View>
+              </Row>
+              <Txt variant="caption" color="text3" style={{ marginTop: 10 }}>
+                ArkStore shows {OS_LABEL[desktop.os]} apps and picks the installer built for this computer.
               </Txt>
             </View>
-          </Row>
-          <Txt variant="caption" color="text3" style={{ marginTop: 10 }}>
-            ArkStore uses this to download the smallest build that runs on your phone.
-          </Txt>
-        </View>
+          </>
+        ) : Platform.OS === 'android' ? (
+          <>
+            <View style={{ height: 24 }} />
+            <SectionHeader title="This phone" />
+            <View style={{ paddingHorizontal: space.gutter }}>
+              <Row label="CPU">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Cpu size={16} color={c.text2} />
+                  <Txt variant="mono" color="text2">
+                    {abis.length ? abis.map(abiLabel).join(' / ') : 'unknown'}
+                  </Txt>
+                </View>
+              </Row>
+              <Txt variant="caption" color="text3" style={{ marginTop: 10 }}>
+                ArkStore uses this to download the smallest build that runs on your phone.
+              </Txt>
+            </View>
+          </>
+        ) : null}
 
         <View style={{ height: 24 }} />
         <SectionHeader title="About" />
         <View style={{ paddingHorizontal: space.gutter }}>
-          <Row label="Version" value={Application.nativeApplicationVersion ?? '1.0.0'} />
+          <Row label="Version" value={currentArkStoreVersion() ?? Application.nativeApplicationVersion ?? '1.0.0'} />
           <Txt variant="caption" color="text3" style={{ marginTop: 10 }}>
             Every app here is built and shared by independent developers on GitHub. ArkStore downloads straight from
             their releases.

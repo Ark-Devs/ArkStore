@@ -2,18 +2,21 @@ import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { BellRinging } from 'phosphor-react-native/src/icons/BellRinging';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { AppRow } from '@/components/store/app-row';
 import { ReclaimBanner } from '@/components/store/installer-storage';
+import { SelfUpdateCard } from '@/components/store/self-update-card';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Button } from '@/components/ui/button';
 import { DotGrid, DotRule } from '@/components/ui/dots';
 import { EmptyState, LargeTitleScreen, SectionHeader } from '@/components/ui/layout';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
+import { showAlert } from '@/lib/alert';
+import { desktop } from '@/lib/desktop';
 import { plainNotes, relativeDate, shortVersion } from '@/lib/format';
-import { installApp, openInstalledApp } from '@/lib/install';
+import { canOpen, installApp, openApp } from '@/lib/install';
 import { useInstalled, type InstalledApp } from '@/lib/stores/installed';
 import { friendlyError, supabase } from '@/lib/supabase';
 import { askForNotifications, checkForUpdates, notificationsAllowed } from '@/lib/updates';
@@ -52,10 +55,11 @@ function NotifyCard({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** An app on this phone with no pending update. */
+/** An app on this device with no pending update. */
 function InstalledRow({ app }: { app: InstalledApp }) {
   const c = useColors();
-  const canOpen = Platform.OS === 'android' && Boolean(app.packageName);
+  const ref = { id: app.appId, package_name: app.packageName };
+  const openable = canOpen(ref, app.launchPath);
   return (
     <Tap
       scale={0.98}
@@ -73,9 +77,9 @@ function InstalledRow({ app }: { app: InstalledApp }) {
           {shortVersion(app.version)}  ·  installed {relativeDate(app.installedAt).toLowerCase()}
         </Txt>
       </View>
-      {canOpen ? (
+      {openable ? (
         <Tap
-          onPress={() => openInstalledApp(app.packageName)}
+          onPress={() => openApp(ref)}
           accessibilityRole="button"
           accessibilityLabel={`Open ${app.name}`}
           style={{ height: 30, minWidth: 74, paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}
@@ -105,7 +109,7 @@ export default function UpdatesScreen() {
   const notes = useReleaseNotes(pending.map((p) => p.appId));
 
   useEffect(() => {
-    if (Platform.OS !== 'web' && Object.keys(installed).length > 0) {
+    if (Platform.OS !== 'web' && !desktop && Object.keys(installed).length > 0) {
       notificationsAllowed().then((ok) => setNeedsPermission(!ok));
     }
   }, [installed]);
@@ -127,7 +131,7 @@ export default function UpdatesScreen() {
       try {
         await installApp(u.app, 'update');
       } catch (e) {
-        Alert.alert(`Couldn't update ${u.app.name}`, friendlyError(e));
+        showAlert(`Couldn't update ${u.app.name}`, friendlyError(e));
         break;
       }
     }
@@ -141,6 +145,7 @@ export default function UpdatesScreen() {
       refreshing={checking}
       onRefresh={check}
     >
+      <SelfUpdateCard />
       {needsPermission ? <NotifyCard onDone={() => setNeedsPermission(false)} /> : null}
 
       {error ? (
@@ -199,7 +204,7 @@ export default function UpdatesScreen() {
           {onPhone.length > 0 ? (
             <>
               <View style={{ height: 18 }} />
-              <SectionHeader title="On this phone" />
+              <SectionHeader title={desktop ? 'On this computer' : 'On this phone'} />
               {onPhone.map((a) => (
                 <InstalledRow key={a.appId} app={a} />
               ))}

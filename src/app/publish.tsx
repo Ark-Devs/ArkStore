@@ -25,6 +25,7 @@ import { TopBar } from '@/components/ui/top-bar';
 import { useApp, useCategories } from '@/lib/api';
 import { getGitHubToken, useAuth } from '@/lib/auth';
 import { androidVersion, compactNumber, fileSize, relativeDate } from '@/lib/format';
+import { OS_LABEL } from '@/lib/github/assets';
 import { detectRepo, GitHubError, type Detection } from '@/lib/github/detect';
 import { parseRepoInput, repoUrl } from '@/lib/github/repo';
 import { listMyRepos, publishApp, updateListing, uploadImage } from '@/lib/publish';
@@ -46,7 +47,7 @@ type Draft = {
 
 const SCAN_LINES = [
   'Reading the repository',
-  'Looking for APKs in your releases',
+  'Looking for installers in your releases',
   'Reading your store listing',
   'Finding the icon and screenshots',
   'Checking the package and Android version',
@@ -177,8 +178,8 @@ function NoApk({ detection, onRetry, onBack }: { detection: Detection; onRetry: 
     <ScrollView contentContainerStyle={{ padding: space.gutter }}>
       <EmptyState
         glyph="APK?"
-        title={`No APK in ${detection.repo.full_name} yet`}
-        body="ArkStore installs the APK attached to your newest GitHub release. Build a release APK, attach it to a release (the Assets section), then scan again."
+        title={`Nothing to install in ${detection.repo.full_name} yet`}
+        body="ArkStore installs the files attached to your newest GitHub release: an APK for Android, an EXE, MSI or MSIX for Windows, a DMG or PKG for macOS, an AppImage, DEB, RPM or Flatpak for Linux. Attach one to a release (the Assets section), then scan again."
         action={
           <View style={{ gap: 10, alignItems: 'center' }}>
             <Button
@@ -199,7 +200,8 @@ function Recognized({ detection }: { detection: Detection }) {
   const c = useColors();
   const r = detection.release!;
   const facts = [
-    `${r.version}${r.prerelease ? ' beta' : ''}  ·  ${r.apks.length} ${r.apks.length === 1 ? 'APK' : 'builds'}`,
+    `${r.version}${r.prerelease ? ' beta' : ''}  ·  ${r.files.length} ${r.files.length === 1 ? 'file' : 'builds'}`,
+    r.platforms.map((p) => OS_LABEL[p]).join(' · '),
     `released ${relativeDate(r.publishedAt).toLowerCase()}`,
     detection.metadataSource === 'fastlane'
       ? 'fastlane listing'
@@ -630,7 +632,10 @@ export default function PublishScreen() {
                   Release
                 </Txt>
                 <Txt variant="callout" color="text2">
-                  {detection.release.apk.name}  ·  {fileSize(detection.release.apk.size)}. Future GitHub releases update this
+                  {detection.release.apk
+                    ? `${detection.release.apk.name}  ·  ${fileSize(detection.release.apk.size)}`
+                    : `${detection.release.files.length} installers for ${detection.release.platforms.map((p) => OS_LABEL[p]).join(', ')}`}
+                  . Future GitHub releases update this
                   listing automatically.
                 </Txt>
               </View>

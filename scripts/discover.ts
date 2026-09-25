@@ -199,9 +199,9 @@ function toSql(d: Detection, category: string, featured: boolean): string {
     q(r.notes.slice(0, 8000)),
     ts(r.publishedAt),
     String(r.prerelease),
-    q(r.apk.name),
-    q(r.apk.browser_download_url),
-    num(r.apk.size),
+    q(r.apk!.name),
+    q(r.apk!.browser_download_url),
+    num(r.apk!.size),
     apkJson(r.apks),
     'now()',
     'now()',
@@ -215,9 +215,9 @@ function toSql(d: Detection, category: string, featured: boolean): string {
         q(v.notes.slice(0, 8000)),
         ts(v.publishedAt),
         String(v.prerelease),
-        q(v.apk.name),
-        q(v.apk.browser_download_url),
-        `${num(v.apk.size)}::bigint`,
+        q(v.apk!.name),
+        q(v.apk!.browser_download_url),
+        `${num(v.apk!.size)}::bigint`,
         apkJson(v.apks),
       ].join(', ')})`,
   );
@@ -269,7 +269,8 @@ async function main() {
     const key = fullName.toLowerCase();
     if (done.has(key) || seeds.exclude.has(key) || existing.has(key)) return;
     done.add(key);
-    const releases = await fetchReleases(fullName, { token, fetch: cachedFetch });
+    // The trending search is for Android apps: only releases with an APK count here.
+    const releases = (await fetchReleases(fullName, { token, fetch: cachedFetch })).filter((r) => r.apk);
     if (!currentRelease(releases)) {
       skipped.push(`${fullName}: no release with an APK`);
       return;

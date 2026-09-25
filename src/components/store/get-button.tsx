@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Check } from 'phosphor-react-native/src/icons/Check';
 import { useEffect } from 'react';
-import { Alert, Linking, Platform, View } from 'react-native';
+import { Linking, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,9 +15,11 @@ import Svg, { Circle } from 'react-native-svg';
 import { DotLoader } from '@/components/ui/dots';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
+import { showAlert } from '@/lib/alert';
+import { pickDownload } from '@/lib/device';
 import { duration } from '@/lib/format';
 import { repoUrl } from '@/lib/github/repo';
-import { cancelDownload, installApp, installFromFile, openInstalledApp } from '@/lib/install';
+import { canOpen, cancelDownload, installApp, installFromFile, openApp } from '@/lib/install';
 import { hasUpdate, useInstalled } from '@/lib/stores/installed';
 import { installerStatus, isNeeded, useInstallers } from '@/lib/stores/installers';
 import { useTasks } from '@/lib/stores/tasks';
@@ -83,7 +85,7 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
   const installed = useInstalled((s) => s.apps[app.id]);
   const file = useInstallers((s) => s.files[app.id]);
   const task = useTasks((s) => s.tasks[app.id]);
-  const hasRelease = Boolean(app.latest_version && (app.apk_url || app.apk_assets?.length));
+  const hasRelease = Boolean(app.latest_version && pickDownload(app));
   const update = installed ? hasUpdate(installed, app) : false;
   const downloaded =
     file && file.version === app.latest_version && isNeeded(installerStatus(file, installed)) ? file : null;
@@ -96,7 +98,7 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
       const outcome = await installApp(app, kind);
       if (outcome !== 'cancelled') done();
     } catch (e) {
-      Alert.alert(`Couldn't ${kind === 'update' ? 'update' : 'get'} ${app.name}`, friendlyError(e));
+      showAlert(`Couldn't ${kind === 'update' ? 'update' : 'get'} ${app.name}`, friendlyError(e));
     }
   };
   const installDownloaded = async () => {
@@ -104,7 +106,7 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
       await installFromFile(downloaded!, installed ? 'update' : 'install');
       done();
     } catch (e) {
-      Alert.alert(`Couldn't install ${app.name}`, friendlyError(e));
+      showAlert(`Couldn't install ${app.name}`, friendlyError(e));
     }
   };
 
@@ -162,11 +164,11 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
     label = 'UPDATE';
     onPress = () => run('update');
   } else if (installed) {
-    const canOpen = Platform.OS === 'android' && Boolean(app.package_name);
-    label = canOpen ? 'OPEN' : 'INSTALLED';
-    icon = canOpen ? null : <Check size={12} color={c.text2} weight="bold" />;
+    const openable = canOpen(app, installed.launchPath);
+    label = openable ? 'OPEN' : 'INSTALLED';
+    icon = openable ? null : <Check size={12} color={c.text2} weight="bold" />;
     onPress = () => {
-      if (!openInstalledApp(app.package_name)) run('install');
+      if (!openApp(app)) run('install');
     };
   }
 

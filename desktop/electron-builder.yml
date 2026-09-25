@@ -1,0 +1,65 @@
+# Packages ArkStore for Windows, macOS and Linux. `npm run desktop:dist` (from the repo root)
+# builds the web UI into ./web first. File names say the platform and CPU, so ArkStore's own
+# download page and release sync recognize them (see src/lib/github/assets.ts).
+appId: com.arkdevs.arkstore
+productName: ArkStore
+copyright: Copyright © Ark-Devs
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.cjs
+  - preload.cjs
+  - installer.cjs
+  - web/**/*
+  - build/icon.png
+  - package.json
+protocols:
+  - name: ArkStore
+    schemes: [arkstore]
+# electron-updater reads latest*.yml from ArkStore's GitHub releases.
+publish:
+  provider: github
+  owner: Ark-Devs
+  repo: ArkStore
+  releaseType: release
+
+win:
+  target:
+    # x64 also runs on Windows on Arm (emulated).
+    - target: nsis
+      arch: [x64]
+  artifactName: ArkStore-${version}-windows-${arch}-setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: ArkStore
+
+mac:
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    # electron-updater installs macOS updates from the zip.
+    - target: zip
+      arch: [x64, arm64]
+  artifactName: ArkStore-${version}-mac-${arch}.${ext}
+  # With no Apple Developer ID (see README) builds are ad-hoc signed: they run, but macOS asks
+  # people to confirm the first launch and they can't update themselves.
+dmg:
+  artifactName: ArkStore-${version}-mac-${arch}.${ext}
+
+linux:
+  executableName: arkstore
+  category: Utility
+  synopsis: Apps from GitHub, installed and kept up to date.
+  maintainer: Ark-Devs <noreply@github.com>
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+  artifactName: ArkStore-${version}-linux-${arch}.${ext}
+  syncDesktopName: true

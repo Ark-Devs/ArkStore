@@ -61,7 +61,11 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json",
     "test": "tsx --test tests/*.test.ts",
     "discover": "tsx scripts/discover.ts",
-    "db:bundle": "tsx scripts/bundle-sql.ts"
+    "db:bundle": "tsx scripts/bundle-sql.ts",
+    "desktop:web": "expo export -p web --output-dir dist-web && node desktop/scripts/prepare-web.mjs",
+    "desktop": "npm run desktop:web && npm --prefix desktop start",
+    "desktop:dev": "npm --prefix desktop run dev",
+    "desktop:dist": "npm run desktop:web && npm --prefix desktop run dist"
   },
   "private": true
 }
