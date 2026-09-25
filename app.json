@@ -70,7 +70,8 @@
           }
         }
       ],
-      "./plugins/with-abi-splits"
+      "./plugins/with-abi-splits",
+      "./plugins/with-release-signing"
     ],
     "experiments": {
       "typedRoutes": true,

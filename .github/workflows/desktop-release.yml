@@ -5,8 +5,10 @@
 # Needs the same two repository secrets as the Android release:
 #   EXPO_PUBLIC_SUPABASE_URL   https://<project>.supabase.co
 #   EXPO_PUBLIC_SUPABASE_KEY   the Supabase publishable key
-# Optional, for signed builds (see README > Desktop): CSC_LINK / CSC_KEY_PASSWORD (Windows or
-# macOS certificate), APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID (notarizing).
+# Optional, for signed builds (see README > Desktop):
+#   WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD   Windows code-signing certificate (.pfx, base64)
+#   CSC_LINK / CSC_KEY_PASSWORD           macOS Developer ID certificate (.p12, base64)
+#   APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID   notarizing
 name: Desktop release
 
 on:
@@ -82,14 +84,20 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # No certificate: build unsigned instead of failing (ad-hoc signed on macOS, which
-          # Apple silicon needs to run the app at all).
+          # No certificate for this OS: build unsigned instead of failing (ad-hoc signed on
+          # macOS, which Apple silicon needs to run the app at all).
           extra=""
-          if [ -z "$CSC_LINK" ]; then
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export CSC_LINK="$WIN_CSC_LINK" CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
+          fi
+          unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
+          if [ -z "$CSC_LINK" ] || [ "$RUNNER_OS" = "Linux" ]; then
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             unset CSC_LINK CSC_KEY_PASSWORD
             if [ "$RUNNER_OS" = "macOS" ]; then extra="-c.mac.identity=-"; fi
