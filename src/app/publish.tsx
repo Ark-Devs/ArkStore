@@ -28,7 +28,7 @@ import { androidVersion, compactNumber, fileSize, relativeDate } from '@/lib/for
 import { OS_LABEL } from '@/lib/github/assets';
 import { detectRepo, GitHubError, type Detection } from '@/lib/github/detect';
 import { parseRepoInput, repoUrl } from '@/lib/github/repo';
-import { listMyRepos, publishApp, updateListing, uploadImage } from '@/lib/publish';
+import { GITHUB_APP_ACCESS_URL, listMyRepos, publishApp, updateListing, uploadImage } from '@/lib/publish';
 import { friendlyError } from '@/lib/supabase';
 import type { StoreApp } from '@/lib/types';
 import { radius, space, useColors } from '@/theme';
@@ -137,6 +137,21 @@ function RepoPicker({ onPick, error }: { onPick: (repo: string) => void; error: 
               ))}
             </View>
           )}
+          <View style={{ marginTop: 8, padding: 14, borderRadius: radius.tile, backgroundColor: c.surface, gap: 8 }}>
+            <Txt variant="subhead">Don't see your organization's repos?</Txt>
+            <Txt variant="callout" color="text2">
+              GitHub hides organizations from apps until an owner approves them. Open GitHub, find the organization under
+              Organization access and tap Grant (or Request, if you're not an owner). Signed in before this update? Sign out
+              and back in once.
+            </Txt>
+            <Button
+              label="Approve on GitHub"
+              variant="secondary"
+              size="sm"
+              icon={<ArrowSquareOut size={14} color={c.text} />}
+              onPress={() => Linking.openURL(GITHUB_APP_ACCESS_URL)}
+            />
+          </View>
         </>
       ) : null}
     </ScrollView>

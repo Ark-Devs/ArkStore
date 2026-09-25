@@ -25,6 +25,7 @@ export type GitHubRepo = {
   default_branch: string;
   private: boolean;
   archived?: boolean;
+  pushed_at?: string | null;
   fork?: boolean;
   owner: { login: string; avatar_url: string; type?: string };
 };

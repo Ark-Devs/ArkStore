@@ -51,7 +51,9 @@ supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') clearToken().catch(() => undefined);
 });
 
-const SCOPES = 'read:user';
+// read:org lists the organizations you belong to (also ones where your membership is private),
+// so their repos show up in Studio.
+const SCOPES = 'read:user read:org';
 
 /**
  * Whether the Supabase project has the GitHub provider switched on. Checked up front so
