@@ -65,3 +65,6 @@ Thumbs.db
 
 expo-env.d.ts
 # @end expo-cli
+
+# Supabase CLI working files
+supabase/.temp/
