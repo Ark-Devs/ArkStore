@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { catalogOS } from './platform';
+import { useBrowse, type BrowseOS } from './stores/browse';
 import { supabase } from './supabase';
 import {
   LIST_COLUMNS,
@@ -26,12 +26,13 @@ async function unwrap<T>(p: PromiseLike<{ data: T | null; error: unknown }>): Pr
   return data as T;
 }
 
-// The Windows / macOS / Linux apps list apps for their platform, the Android app lists
-// Android apps; browsers see everything.
-const STORE_OS = catalogOS();
-function forThisStore<Q extends { contains: (column: string, value: string[]) => Q }>(q: Q): Q {
-  return STORE_OS ? q.contains('platforms', [STORE_OS]) : q;
+// The catalog shows one platform's apps at a time (this device's by default, see
+// stores/browse.ts), or every platform when 'all' is picked.
+function forPlatform<Q extends { contains: (column: string, value: string[]) => Q }>(q: Q, os: BrowseOS): Q {
+  return os === 'all' ? q : q.contains('platforms', [os]);
 }
+
+const useBrowsing = () => useBrowse((s) => s.os);
 
 export const keys = {
   categories: ['categories'] as const,
@@ -53,10 +54,10 @@ export function useCategories() {
   });
 }
 
-type AppsOptions = { category?: string; limit?: number; featuredFirst?: boolean };
+type AppsOptions = { category?: string; limit?: number; featuredFirst?: boolean; os?: BrowseOS };
 
 export function fetchApps(order: AppOrder, opts: AppsOptions = {}) {
-  let q = forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'));
+  let q = forPlatform(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'), opts.os ?? useBrowse.getState().os);
   if (opts.featuredFirst) q = q.order('featured', { ascending: false });
   q = q.order(ORDER_COLUMN[order], { ascending: false, nullsFirst: false }).limit(opts.limit ?? 30);
   if (opts.category) q = q.eq('category', opts.category);
@@ -64,19 +65,21 @@ export function fetchApps(order: AppOrder, opts: AppsOptions = {}) {
 }
 
 export function useApps(order: AppOrder, opts: AppsOptions = {}) {
+  const os = useBrowsing();
   return useQuery({
-    queryKey: [...keys.apps(order, opts.category, opts.limit), opts.featuredFirst ?? false],
-    queryFn: () => fetchApps(order, opts),
+    queryKey: [...keys.apps(order, opts.category, opts.limit), opts.featuredFirst ?? false, os],
+    queryFn: () => fetchApps(order, { ...opts, os }),
   });
 }
 
 /** Apps the store gives priority to (apps.featured). */
 export function useFeatured() {
+  const os = useBrowsing();
   return useQuery({
-    queryKey: ['featured'],
+    queryKey: ['featured', os],
     queryFn: () =>
       unwrap<ListApp[]>(
-        forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'))
+        forPlatform(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'), os)
           .eq('featured', true)
           .order('latest_published_at', { ascending: false, nullsFirst: false })
           .limit(10),
@@ -110,12 +113,13 @@ export function useVersions(appId: string | undefined) {
 
 export function useSearch(query: string) {
   const term = query.replace(/[,()*%\\]/g, ' ').trim();
+  const os = useBrowsing();
   return useQuery({
-    queryKey: keys.search(term.toLowerCase()),
+    queryKey: [...keys.search(term.toLowerCase()), os],
     enabled: term.length >= 2,
     queryFn: () =>
       unwrap<ListApp[]>(
-        forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'))
+        forPlatform(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'), os)
           .or(
             ['name', 'subtitle', 'developer_login', 'repo_full_name', 'category']
               .map((c) => `${c}.ilike.%${term}%`)
@@ -129,12 +133,13 @@ export function useSearch(query: string) {
 }
 
 export function useDeveloperApps(login: string | undefined) {
+  const os = useBrowsing();
   return useQuery({
-    queryKey: keys.developer(login ?? ''),
+    queryKey: [...keys.developer(login ?? ''), os],
     enabled: Boolean(login),
     queryFn: () =>
       unwrap<ListApp[]>(
-        forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'))
+        forPlatform(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'), os)
           .ilike('developer_login', login!)
           .order('stars', { ascending: false })
           .limit(12),

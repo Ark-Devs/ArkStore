@@ -5,6 +5,7 @@ import { XCircle } from 'phosphor-react-native/src/icons/XCircle';
 import { useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 
+import { PlatformSwitcher } from '@/components/store/platform-switcher';
 import { AppRow } from '@/components/store/app-row';
 import { CategoryIcon } from '@/components/store/category-icon';
 import { DotRule } from '@/components/ui/dots';
@@ -67,6 +68,7 @@ export default function SearchScreen() {
           </Tap>
         ) : null}
       </View>
+      <PlatformSwitcher />
 
       {!searching ? (
         <>
