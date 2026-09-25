@@ -1,4 +1,5 @@
 import type { ApkAsset } from './github/apk';
+import type { ReleaseFile, StoreOS } from './github/assets';
 
 export type Category = { slug: string; name: string; icon: string; sort: number };
 
@@ -31,7 +32,11 @@ export type StoreApp = {
   apk_url: string | null;
   apk_size: number | null;
   apk_assets: ApkAsset[];
-  /** APK files downloaded through ArkStore. */
+  /** Every installable file in the release (APKs and Windows / macOS / Linux installers). */
+  assets: ReleaseFile[];
+  /** Platforms the app can be installed on, derived from assets. */
+  platforms: StoreOS[];
+  /** Files downloaded through ArkStore. */
   downloads: number;
   /** Installs Android confirmed (first installs, not updates). */
   installs: number;
@@ -44,7 +49,7 @@ export type StoreApp = {
 
 /** Columns needed for rows, shelves and cards (no long text). */
 export const LIST_COLUMNS =
-  'id,owner_id,source,repo_full_name,name,subtitle,category,icon_url,screenshots,developer_login,stars,latest_version,latest_published_at,latest_prerelease,apk_name,apk_url,apk_size,apk_assets,downloads,installs,status,featured,package_name,created_at' as const;
+  'id,owner_id,source,repo_full_name,name,subtitle,category,icon_url,screenshots,developer_login,stars,latest_version,latest_published_at,latest_prerelease,apk_name,apk_url,apk_size,apk_assets,assets,platforms,downloads,installs,status,featured,package_name,created_at' as const;
 
 export type ListApp = Pick<
   StoreApp,
@@ -66,6 +71,8 @@ export type ListApp = Pick<
   | 'apk_url'
   | 'apk_size'
   | 'apk_assets'
+  | 'assets'
+  | 'platforms'
   | 'downloads'
   | 'installs'
   | 'status'

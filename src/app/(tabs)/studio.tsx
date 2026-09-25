@@ -28,7 +28,7 @@ import { radius, space, useColors } from '@/theme';
 
 const STEPS = [
   ['Link a repo', 'Paste any public GitHub repo, or pick one of yours.'],
-  ['ArkStore reads it', 'Icon, screenshots, description and the APK in your latest release.'],
+  ['ArkStore reads it', 'Icon, screenshots, description and the installers in your latest release: APK, EXE, MSI, DMG, AppImage or DEB.'],
   ['Publish', 'Every new GitHub release reaches your users as an update. No re-uploading.'],
 ];
 
@@ -326,7 +326,7 @@ export default function StudioScreen() {
             <EmptyState
               glyph="+"
               title="No apps yet"
-              body="Publish a repo that has an APK attached to a GitHub release. It takes about a minute."
+              body="Publish a repo with an APK, or a Windows, macOS or Linux installer, attached to a GitHub release. It takes about a minute."
             />
           ) : (
             (mine.data ?? []).map((app) => (

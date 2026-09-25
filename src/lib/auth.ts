@@ -9,7 +9,10 @@ import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { create } from 'zustand';
 
-import { supabase } from './supabase';
+import { showAlert } from './alert';
+import { desktop, onDesktopUrl } from './desktop';
+import { forgetThisDevice } from './devices';
+import { friendlyError, supabase } from './supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -70,6 +73,19 @@ async function githubSignInEnabled(): Promise<boolean | null> {
 export async function signInWithGitHub(): Promise<'signed-in' | 'cancelled' | 'redirecting'> {
   if ((await githubSignInEnabled()) === false) throw new Error('github_login_disabled');
 
+  if (desktop) {
+    // Sign in in the person's own browser (where they're likely signed in to GitHub already);
+    // GitHub sends them back to arkstore://auth-callback, which the desktop app hands to
+    // completeSignIn() below.
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo: 'arkstore://auth-callback', skipBrowserRedirect: true, scopes: SCOPES },
+    });
+    if (error) throw error;
+    await desktop.openExternal(data.url);
+    return 'redirecting';
+  }
+
   if (Platform.OS === 'web') {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
@@ -117,7 +133,15 @@ export function completeSignIn(url: string): Promise<void> {
   return pending;
 }
 
+// Desktop: the browser hands the sign-in redirect to the app as an arkstore:// link.
+onDesktopUrl((url) => {
+  if (url.startsWith('arkstore://auth-callback')) {
+    completeSignIn(url).catch((e) => showAlert("Couldn't sign in", friendlyError(e)));
+  }
+});
+
 export async function signOut() {
+  await forgetThisDevice().catch(() => undefined);
   await supabase.auth.signOut();
   await clearToken();
 }

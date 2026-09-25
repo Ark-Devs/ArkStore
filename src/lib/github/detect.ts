@@ -1,7 +1,9 @@
-// Recognize an Android app from its GitHub repo: listing text, icon, screenshots,
-// package id and the newest stable release that ships an APK.
+// Recognize an app from its GitHub repo: listing text, icon, screenshots, package id and
+// the newest stable release that ships something installable (APK, or Windows / macOS /
+// Linux installers).
 // Platform-agnostic (plain fetch), shared by the app and scripts/discover.ts.
 import { pickApk, type ReleaseAsset } from './apk';
+import { installableAssets, platformsOf, type ReleaseFile, type StoreOS } from './assets';
 import { suggestCategory } from './category';
 import { readmeImages, readmeSummary } from './markdown';
 import type { RepoRef } from './repo';
@@ -44,9 +46,13 @@ export type DetectedRelease = {
   notes: string;
   publishedAt: string | null;
   prerelease: boolean;
-  apk: ReleaseAsset;
+  /** Best APK in the release, or null for desktop-only releases. */
+  apk: ReleaseAsset | null;
   /** Every APK in the release, so phones can pick the build for their CPU. */
   apks: ReleaseAsset[];
+  /** Every installable file, for every platform. */
+  files: ReleaseFile[];
+  platforms: StoreOS[];
 };
 
 export type Detection = {
@@ -288,8 +294,9 @@ function firstSentence(text: string) {
 
 function toRelease(r: GitHubRelease): DetectedRelease | null {
   if (r.draft) return null;
+  const files = installableAssets(r.assets);
+  if (files.length === 0) return null;
   const apk = pickApk(r.assets);
-  if (!apk) return null;
   return {
     version: r.tag_name,
     name: r.name || null,
@@ -298,11 +305,13 @@ function toRelease(r: GitHubRelease): DetectedRelease | null {
     prerelease: r.prerelease,
     apk,
     apks: r.assets.filter((a) => a.name.toLowerCase().endsWith('.apk')),
+    files,
+    platforms: platformsOf(files),
   };
 }
 
-/** Published releases that ship an APK, newest first (drafts excluded, prereleases kept). */
-export function apkReleases(releases: GitHubRelease[]): DetectedRelease[] {
+/** Published releases that ship something installable, newest first (drafts excluded, prereleases kept). */
+export function installableReleases(releases: GitHubRelease[]): DetectedRelease[] {
   return releases
     .map(toRelease)
     .filter((r): r is DetectedRelease => r !== null)
@@ -310,7 +319,7 @@ export function apkReleases(releases: GitHubRelease[]): DetectedRelease[] {
 }
 
 /**
- * The release ArkStore installs: newest stable one with an APK, or the newest prerelease
+ * The release ArkStore installs: newest stable one with an installer, or the newest prerelease
  * when the project has only ever shipped betas. Mirrors arkstore_private.fetch_release().
  */
 export function currentRelease(releases: DetectedRelease[]): DetectedRelease | null {
@@ -319,7 +328,7 @@ export function currentRelease(releases: DetectedRelease[]): DetectedRelease | n
 
 export async function fetchReleases(fullName: string, opts: Options = {}) {
   const list = await api<GitHubRelease[]>(`/repos/${fullName}/releases?per_page=15`, opts);
-  return apkReleases(list);
+  return installableReleases(list);
 }
 
 export async function detectRepo(ref: RepoRef, opts: Options = {}): Promise<Detection> {

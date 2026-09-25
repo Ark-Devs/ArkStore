@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { ListApp } from '../types';
 
-/** An app installed through ArkStore, remembered on this phone. */
+/** An app installed through ArkStore, remembered on this phone or computer. */
 export type InstalledApp = {
   appId: string;
   name: string;
@@ -14,6 +14,8 @@ export type InstalledApp = {
   publishedAt: string | null;
   assetName: string;
   installedAt: string;
+  /** Desktop: what OPEN launches (an .app, an AppImage, a Start menu shortcut), when known. */
+  launchPath?: string | null;
 };
 
 export type PendingUpdate = {

@@ -6,6 +6,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 
+import { classifyAsset } from '../src/lib/github/assets';
+
 const root = join(import.meta.dirname, '..');
 // Every migration except the ones that need real Supabase extensions (http, pg_cron).
 const schemaSql = readdirSync(join(root, 'supabase/migrations'))
@@ -32,8 +34,12 @@ const supabaseStubs = /* sql */ `
   );
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+  create function auth.jwt() returns jsonb language sql stable as
+    $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
+  create table auth.sessions (id uuid primary key, user_id uuid references auth.users (id));
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
+  grant execute on function auth.jwt() to anon, authenticated;
 
   create schema extensions;
   create type extensions.http_header as (field varchar, value varchar);
@@ -125,14 +131,15 @@ describe('supabase schema', () => {
     );
   }
 
-  // Run statements as a client role, the way PostgREST does.
-  async function as<T = any>(uid: string | null, sql: string, params: unknown[] = []) {
+  // Run statements as a client role, the way PostgREST does. `session` is the JWT's session_id.
+  async function as<T = any>(uid: string | null, sql: string, params: unknown[] = [], session: string | null = null) {
     const role = uid ? 'authenticated' : 'anon';
-    await db.exec(`set role ${role}; set request.jwt.claim.sub = '${uid ?? ''}';`);
+    const claims = JSON.stringify(uid ? { sub: uid, session_id: session } : {});
+    await db.exec(`set role ${role}; set request.jwt.claim.sub = '${uid ?? ''}'; set request.jwt.claims = '${claims}';`);
     try {
       return await db.query<T>(sql, params);
     } finally {
-      await db.exec(`reset role; set request.jwt.claim.sub = '';`);
+      await db.exec(`reset role; set request.jwt.claim.sub = ''; set request.jwt.claims = '';`);
     }
   }
 
@@ -243,7 +250,7 @@ describe('supabase schema', () => {
     );
   });
 
-  test('a release without an APK cannot be published', async () => {
+  test('a release with nothing installable cannot be published', async () => {
     await assert.rejects(
       publish(ALICE, { repo: 'alice/server', name: 'Server', category: 'tools' }),
       /no_apk_release/,
@@ -478,6 +485,142 @@ describe('supabase schema', () => {
     assert.equal(again.name, 'DB Crawler');
     assert.equal(again.featured, true);
     assert.equal(again.latest_version, 'v9.9.9', 'release data belongs to the sync job');
+  });
+
+  test('release files are classified the same way in the app and the database', async () => {
+    const names = [
+      'notes-arm64-v8a.apk',
+      'Notes-Setup-1.2.0.exe',
+      'notes-1.2.0-x64.msi',
+      'Notes_1.2.0_x64.msixbundle',
+      'Notes-1.2.0-universal.dmg',
+      'Notes-1.2.0-arm64.pkg',
+      'Notes-1.2.0-mac-arm64.zip',
+      'notes-darwin-x64.zip',
+      'notes-win64.zip',
+      'notes-windows-arm64.zip',
+      'Notes-1.2.0-x86_64.AppImage',
+      'notes_1.2.0_amd64.deb',
+      'notes-1.2.0.aarch64.rpm',
+      'notes.flatpak',
+      'notes-linux-armhf.tar.gz',
+      'notes-macos.tar.xz',
+      'notes-machine.zip',
+      'source.tar.gz',
+      'checksums.txt',
+      'latest.yml',
+      'Notes-Setup-1.2.0.exe.blockmap',
+      'notes-i686.AppImage',
+    ];
+    for (const name of names) {
+      const { rows } = await db.query<{ os: string | null; arch: string | null }>(
+        'select arkstore_private.asset_os($1) os, arkstore_private.asset_arch($1) arch',
+        [name],
+      );
+      const ts = classifyAsset(name);
+      assert.equal(rows[0].os, ts?.os ?? null, `os of ${name}`);
+      if (ts) assert.equal(rows[0].arch, ts.arch, `arch of ${name}`);
+    }
+  });
+
+  test('desktop-only releases can be published and are tagged with their platforms', async () => {
+    await mock('/repos/alice/desk', 200, repoJson('alice/desk'));
+    await mock('/repos/alice/desk/releases?per_page=15', 200, [
+      release('v2.0.0', [
+        'Desk-Setup-2.0.0.exe',
+        'Desk-2.0.0-arm64.dmg',
+        'Desk-2.0.0-x86_64.AppImage',
+        'desk_2.0.0_amd64.deb',
+        'latest.yml',
+        'Desk-Setup-2.0.0.exe.blockmap',
+        'source.tar.gz',
+      ]),
+    ]);
+    const { rows } = await publish(ALICE, { repo: 'alice/desk', name: 'Desk', category: 'productivity' });
+    const app = rows[0] as any;
+    assert.equal(app.latest_version, 'v2.0.0');
+    assert.equal(app.apk_url, null, 'no APK, and that is fine');
+    assert.deepEqual(app.platforms, ['windows', 'macos', 'linux']);
+    assert.deepEqual(
+      app.assets.map((a: any) => [a.name, a.os, a.arch]),
+      [
+        ['Desk-2.0.0-arm64.dmg', 'macos', 'arm64'],
+        ['Desk-2.0.0-x86_64.AppImage', 'linux', 'x64'],
+        ['Desk-Setup-2.0.0.exe', 'windows', null],
+        ['desk_2.0.0_amd64.deb', 'linux', 'x64'],
+      ],
+    );
+    const v = await db.query<any>('select assets from public.app_versions where app_id = $1', [app.id]);
+    assert.equal(v.rows[0].assets.length, 4);
+
+    // Filtering the catalog by platform, the way the Windows app does.
+    const win = await as(null, `select repo_full_name from public.apps where platforms @> array['windows']`);
+    assert.ok(win.rows.some((r: any) => r.repo_full_name === 'alice/desk'));
+    assert.ok(!win.rows.some((r: any) => r.repo_full_name === 'alice/notes'), 'Android-only apps stay out');
+
+    await assert.rejects(as(ALICE, `update public.apps set platforms = '{android}' where id = $1`, [app.id]), /permission denied/);
+    await assert.rejects(as(ALICE, `update public.apps set assets = '[]' where id = $1`, [app.id]), /permission denied/);
+  });
+
+  test('APK listings are tagged android, also when written with apk_assets only (seed)', async () => {
+    const notes = (await db.query<any>(`select platforms, assets from public.apps where repo_full_name = 'alice/notes'`)).rows[0];
+    assert.deepEqual(notes.platforms, ['android']);
+    assert.ok(notes.assets.every((a: any) => a.os === 'android'));
+
+    await db.exec(`
+      insert into public.apps (source, repo_full_name, name, category, developer_login, apk_assets)
+      values ('curated', 'carol/seeded', 'Seeded', 'tools', 'carol',
+              '[{"name": "s-arm64-v8a.apk", "url": "https://x/s.apk", "size": 5}]');
+    `);
+    const seeded = (await db.query<any>(`select platforms, assets from public.apps where repo_full_name = 'carol/seeded'`)).rows[0];
+    assert.deepEqual(seeded.platforms, ['android']);
+    assert.equal(seeded.assets[0].arch, 'arm64');
+    await db.exec(`delete from public.apps where repo_full_name = 'carol/seeded'`);
+  });
+
+  test('signed-in devices: listed per account, signed out remotely, private to their owner', async () => {
+    const S1 = '00000000-0000-4000-8000-000000000051';
+    const S2 = '00000000-0000-4000-8000-000000000052';
+    await db.exec(`insert into auth.sessions (id, user_id) values ('${S1}', '${ALICE}'), ('${S2}', '${ALICE}')`);
+    const register = (sid: string, device: string, platform: string, name: string) =>
+      as(ALICE, 'select public.register_device($1, $2, $3, $4, $5, $6) r', [device, platform, name, '11', 'x64', '1.2.0'], sid);
+
+    assert.equal((await register(S1, 'phone-000000001', 'android', 'Pixel 8')).rows[0].r, 'ok');
+    assert.equal((await register(S2, 'laptop-00000001', 'windows', 'DESK-PC')).rows[0].r, 'ok');
+    await register(S2, 'laptop-00000001', 'windows', 'DESK-PC'); // check-ins don't duplicate
+
+    const mine = await as(ALICE, 'select device_id, platform, name, session_id from public.user_devices order by platform');
+    assert.deepEqual(mine.rows.map((r: any) => [r.platform, r.name]), [['android', 'Pixel 8'], ['windows', 'DESK-PC']]);
+    const bobs = await as(BOB, 'select * from public.user_devices');
+    assert.equal(bobs.rows.length, 0, "other people can't see your devices");
+
+    await assert.rejects(
+      as(ALICE, `insert into public.user_devices (user_id, device_id, platform) values ($1, 'forged-device', 'linux')`, [ALICE]),
+      /permission denied/,
+    );
+    await assert.rejects(as(null, `select public.register_device('anon-device-1', 'web')`), /permission denied/);
+    await assert.rejects(register(S1, 'x', 'android', 'bad'), /invalid_device/);
+    await assert.rejects(register(S1, 'phone-000000002', 'toaster', 'bad'), /invalid_platform/);
+
+    // Sign the laptop out from the phone.
+    const laptop = (await as(ALICE, `select id from public.user_devices where device_id = 'laptop-00000001'`)).rows[0] as any;
+    await assert.rejects(as(BOB, 'select public.sign_out_device($1)', [laptop.id]), /device_not_found/);
+    await as(ALICE, 'select public.sign_out_device($1)', [laptop.id], S1);
+    const sessions = await db.query<any>(`select id from auth.sessions where user_id = '${ALICE}'`);
+    assert.deepEqual(sessions.rows.map((r) => r.id), [S1], "the laptop's session is revoked");
+
+    // The laptop checks in with its old session and learns it was signed out.
+    assert.equal((await register(S2, 'laptop-00000001', 'windows', 'DESK-PC')).rows[0].r, 'signed_out');
+    // Signing in again (new session) brings it back.
+    const S3 = '00000000-0000-4000-8000-000000000053';
+    assert.equal((await register(S3, 'laptop-00000001', 'windows', 'DESK-PC')).rows[0].r, 'ok');
+    const back = (await as(ALICE, `select signed_out_at from public.user_devices where device_id = 'laptop-00000001'`)).rows[0] as any;
+    assert.equal(back.signed_out_at, null);
+
+    // Signing out on the phone itself removes it from the list.
+    await as(ALICE, 'select public.forget_device($1)', ['phone-000000001'], S1);
+    const left = await as(ALICE, 'select device_id from public.user_devices');
+    assert.deepEqual(left.rows.map((r: any) => r.device_id), ['laptop-00000001']);
   });
 
   test('storage uploads are limited to the caller folder', async () => {

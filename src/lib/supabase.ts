@@ -41,13 +41,18 @@ const FRIENDLY: Record<string, string> = {
   repo_private: 'That repo is private. Only public repos can be listed.',
   not_repo_owner:
     "You can only publish repos you own or can push to. For an organisation's repo, sign out and in again so ArkStore can check your access.",
-  no_apk_release: 'No APK in your releases yet. Attach an .apk to a GitHub release and try again.',
+  // Historic name: raised when the newest release has nothing installable for any platform.
+  no_apk_release:
+    'Nothing to install in your releases yet. Attach an APK, EXE, MSI, DMG, AppImage or DEB to a GitHub release and try again.',
   already_listed: 'Someone else already listed this repo. If it is yours, contact us to transfer it.',
   github_rate_limited: 'GitHub is busy. Try again in a minute.',
   github_unavailable: "Couldn't reach GitHub. Try again in a minute.",
   not_app_owner: "Only the app's developer can do that.",
   app_not_found: 'This app is no longer listed.',
+  device_not_found: 'That device is already signed out.',
   PGRST205: "ArkStore's database isn't set up yet. Run supabase/setup.sql in your Supabase project.",
+  PGRST202: "ArkStore's database needs an update. Run supabase/setup.sql in your Supabase project again.",
+  '42703': "ArkStore's database needs an update. Run supabase/setup.sql in your Supabase project again.",
 };
 
 /** Maps database error codes (raised by our SQL functions) to sentences people can act on. */

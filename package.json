@@ -1,7 +1,7 @@
 {
   "name": "arkstore",
   "main": "expo-router/entry",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "dependencies": {
     "@expo-google-fonts/doto": "^0.4.1",
     "@expo-google-fonts/space-grotesk": "^0.4.1",
@@ -61,7 +61,11 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json",
     "test": "tsx --test tests/*.test.ts",
     "discover": "tsx scripts/discover.ts",
-    "db:bundle": "tsx scripts/bundle-sql.ts"
+    "db:bundle": "tsx scripts/bundle-sql.ts",
+    "desktop:web": "expo export -p web --output-dir dist-web && node desktop/scripts/prepare-web.mjs",
+    "desktop": "npm run desktop:web && npm --prefix desktop start",
+    "desktop:dev": "npm --prefix desktop run dev",
+    "desktop:dist": "npm run desktop:web && npm --prefix desktop run dist"
   },
   "private": true
 }

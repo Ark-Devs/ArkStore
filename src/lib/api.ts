@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { catalogOS } from './platform';
 import { supabase } from './supabase';
 import {
   LIST_COLUMNS,
@@ -25,6 +26,13 @@ async function unwrap<T>(p: PromiseLike<{ data: T | null; error: unknown }>): Pr
   return data as T;
 }
 
+// The Windows / macOS / Linux apps list apps for their platform, the Android app lists
+// Android apps; browsers see everything.
+const STORE_OS = catalogOS();
+function forThisStore<Q extends { contains: (column: string, value: string[]) => Q }>(q: Q): Q {
+  return STORE_OS ? q.contains('platforms', [STORE_OS]) : q;
+}
+
 export const keys = {
   categories: ['categories'] as const,
   apps: (order: AppOrder, category?: string, limit?: number) => ['apps', order, category ?? '*', limit] as const,
@@ -48,7 +56,7 @@ export function useCategories() {
 type AppsOptions = { category?: string; limit?: number; featuredFirst?: boolean };
 
 export function fetchApps(order: AppOrder, opts: AppsOptions = {}) {
-  let q = supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published');
+  let q = forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'));
   if (opts.featuredFirst) q = q.order('featured', { ascending: false });
   q = q.order(ORDER_COLUMN[order], { ascending: false, nullsFirst: false }).limit(opts.limit ?? 30);
   if (opts.category) q = q.eq('category', opts.category);
@@ -68,10 +76,7 @@ export function useFeatured() {
     queryKey: ['featured'],
     queryFn: () =>
       unwrap<ListApp[]>(
-        supabase
-          .from('apps')
-          .select(LIST_COLUMNS)
-          .eq('status', 'published')
+        forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'))
           .eq('featured', true)
           .order('latest_published_at', { ascending: false, nullsFirst: false })
           .limit(10),
@@ -110,10 +115,7 @@ export function useSearch(query: string) {
     enabled: term.length >= 2,
     queryFn: () =>
       unwrap<ListApp[]>(
-        supabase
-          .from('apps')
-          .select(LIST_COLUMNS)
-          .eq('status', 'published')
+        forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'))
           .or(
             ['name', 'subtitle', 'developer_login', 'repo_full_name', 'category']
               .map((c) => `${c}.ilike.%${term}%`)
@@ -132,10 +134,7 @@ export function useDeveloperApps(login: string | undefined) {
     enabled: Boolean(login),
     queryFn: () =>
       unwrap<ListApp[]>(
-        supabase
-          .from('apps')
-          .select(LIST_COLUMNS)
-          .eq('status', 'published')
+        forThisStore(supabase.from('apps').select(LIST_COLUMNS).eq('status', 'published'))
           .ilike('developer_login', login!)
           .order('stars', { ascending: false })
           .limit(12),

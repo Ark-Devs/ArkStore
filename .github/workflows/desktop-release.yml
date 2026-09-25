@@ -1,0 +1,133 @@
+# Builds ArkStore for Windows, macOS and Linux on GitHub's servers and attaches the installers
+# to the same release as the Android APKs. Push a tag like v1.2.0 to release; run it by hand
+# from the Actions tab to just build.
+#
+# Needs the same two repository secrets as the Android release:
+#   EXPO_PUBLIC_SUPABASE_URL   https://<project>.supabase.co
+#   EXPO_PUBLIC_SUPABASE_KEY   the Supabase publishable key
+# Optional, for signed builds (see README > Desktop): CSC_LINK / CSC_KEY_PASSWORD (Windows or
+# macOS certificate), APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID (notarizing).
+name: Desktop release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
+    steps:
+      - name: Check Supabase settings
+        shell: bash
+        run: |
+          if [ -z "$EXPO_PUBLIC_SUPABASE_URL" ] || [ -z "$EXPO_PUBLIC_SUPABASE_KEY" ]; then
+            echo "::error::Add the EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY secrets under Settings > Secrets and variables > Actions, then re-run this workflow."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci --include=dev --no-audit --no-fund
+          npm ci --prefix desktop --no-audit --no-fund
+
+      - name: Test
+        if: runner.os == 'Linux'
+        run: npm test
+
+      - name: Build the web UI
+        run: npm run desktop:web
+
+      - name: Package
+        working-directory: desktop
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # No certificate: build unsigned instead of failing (ad-hoc signed on macOS, which
+          # Apple silicon needs to run the app at all).
+          extra=""
+          if [ -z "$CSC_LINK" ]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            unset CSC_LINK CSC_KEY_PASSWORD
+            if [ "$RUNNER_OS" = "macOS" ]; then extra="-c.mac.identity=-"; fi
+          fi
+          npx electron-builder ${{ matrix.target }} --publish never $extra
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arkstore-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+            desktop/dist/*.blockmap
+            desktop/dist/latest*.yml
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - run: ls -la dist
+
+      # Same release as the Android workflow; whichever finishes first creates it.
+      - name: Attach to the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ArkStore ${{ github.ref_name }}
+          body_path: release-notes/${{ github.ref_name }}.md
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml

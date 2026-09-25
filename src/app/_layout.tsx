@@ -21,7 +21,9 @@ import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import '@/lib/auth';
-import { isPackageInstalled, reconcileInstallers } from '@/lib/install';
+import '@/lib/devices';
+import { desktop, onDesktopUrl } from '@/lib/desktop';
+import { isPackageInstalled, reconcileDesktopApps, reconcileInstallers } from '@/lib/install';
 import { useInstalled } from '@/lib/stores/installed';
 import { checkForUpdates, setupUpdateChecks } from '@/lib/updates';
 import { useColors, useScheme } from '@/theme';
@@ -123,6 +125,23 @@ export default function RootLayout() {
 function WebUpdateWatcher() {
   useEffect(() => {
     checkForUpdates({ notify: false }).catch(() => undefined);
+    if (!desktop) return;
+
+    // The desktop app stays open for long stretches: check every 30 minutes and notify, and
+    // follow notification clicks and arkstore:// links to their page.
+    reconcileDesktopApps().catch(() => undefined);
+    const timer = setInterval(() => {
+      reconcileDesktopApps().catch(() => undefined);
+      checkForUpdates({ notify: true }).catch(() => undefined);
+    }, 30 * 60 * 1000);
+    const stop = onDesktopUrl((url) => {
+      if (url.startsWith('/')) router.push(url as never);
+      else if (url.startsWith('arkstore://app/')) router.push(`/app/${url.slice('arkstore://app/'.length)}` as never);
+    });
+    return () => {
+      clearInterval(timer);
+      stop();
+    };
   }, []);
   return null;
 }

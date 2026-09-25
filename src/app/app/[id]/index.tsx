@@ -19,7 +19,9 @@ import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
 import { useApp, useCategories, useDeveloperApps } from '@/lib/api';
-import { chooseBuild } from '@/lib/device';
+import { desktop } from '@/lib/desktop';
+import { pickDownload } from '@/lib/device';
+import { OS_LABEL } from '@/lib/github/assets';
 import {
   androidVersion,
   compactNumber,
@@ -123,7 +125,8 @@ export default function AppScreen() {
   }
 
   const category = categories.data?.find((cat) => cat.slug === app.category);
-  const build = chooseBuild(app.apk_assets, { name: app.apk_name, url: app.apk_url, size: app.apk_size }, override);
+  const build = pickDownload(app, override);
+  const available = (app.platforms ?? []).map((p) => OS_LABEL[p]).join(', ');
   const notes = plainNotes(app.latest_release_notes);
   const others = (more.data ?? []).filter((a) => a.id !== app.id);
 
@@ -144,8 +147,8 @@ export default function AppScreen() {
     { label: 'Version', value: shortVersion(app.latest_version) || '-', caption: app.latest_prerelease ? 'beta' : relativeDate(app.latest_published_at) },
     {
       label: 'Size',
-      value: fileSize(build?.asset.size),
-      caption: downloadEstimate(build?.asset.size, speed) ?? (build?.matched ? 'for this phone' : 'download'),
+      value: fileSize(build?.size),
+      caption: downloadEstimate(build?.size, speed) ?? (build?.matched ? (desktop ? 'for this computer' : 'for this phone') : 'download'),
     },
     ...(app.min_sdk ? [{ label: 'Requires', value: androidVersion(app.min_sdk)!.replace('Android ', ''), caption: 'Android' }] : []),
     ...(app.license ? [{ label: 'License', value: app.license.replace(/-only|-or-later/i, ''), caption: 'open source' }] : []),
@@ -240,7 +243,8 @@ export default function AppScreen() {
           <InfoRow label="Source code" value={app.repo_full_name} onPress={() => Linking.openURL(repoUrl(app.repo_full_name))} />
           {app.homepage ? <InfoRow label="Website" value={app.homepage.replace(/^https:\/\//, '')} onPress={() => Linking.openURL(app.homepage!)} /> : null}
           <InfoRow label="Category" value={category?.name} onPress={() => router.push(`/category/${app.category}`)} />
-          <InfoRow label="Size" value={fileSize(build?.asset.size)} />
+          <InfoRow label="Size" value={fileSize(build?.size)} />
+          <InfoRow label="Available for" value={available} />
           <InfoRow label="Compatibility" value={androidVersion(app.min_sdk)} />
           <InfoRow label="Package" value={app.package_name} />
           <InfoRow label="License" value={app.license} />
