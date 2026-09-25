@@ -89,12 +89,16 @@ jobs:
           name: arkstore-apks
           path: dist/*.apk
 
+      # Creates the release, or adds the APKs to it when the desktop workflow got there first
+      # (uploading assets only; editing an existing release is refused to workflow tokens).
       - name: Publish the GitHub release
         if: steps.tag.outputs.tag != ''
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: ArkStore ${{ steps.tag.outputs.tag }}
-          body_path: release-notes/${{ steps.tag.outputs.tag }}.md
-          files: dist/*.apk
-          fail_on_unmatched_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.apk --clobber
+          else
+            gh release create "$TAG" dist/*.apk --title "ArkStore $TAG" --notes-file "release-notes/$TAG.md" --target "$GITHUB_SHA"
+          fi
