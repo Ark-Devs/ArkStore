@@ -25,6 +25,7 @@ publish:
   releaseType: release
 
 win:
+  icon: build/icon.png
   target:
     # x64 also runs on Windows on Arm (emulated). The .exe updates itself; the .msi is for
     # people and IT departments who prefer MSI (it updates by installing a newer MSI).
@@ -47,6 +48,7 @@ nsis:
   shortcutName: ArkStore
 
 mac:
+  icon: build/icon.png
   category: public.app-category.utilities
   target:
     - target: dmg
@@ -61,6 +63,7 @@ dmg:
   artifactName: ArkStore-${version}-mac-${arch}.${ext}
 
 linux:
+  icon: build/icon.png
   executableName: arkstore
   category: Utility
   synopsis: Apps from GitHub, installed and kept up to date.
