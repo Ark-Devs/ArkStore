@@ -265,6 +265,8 @@ const notesText = (notes) =>
 
 function updatesSupported() {
   if (!app.isPackaged || DEV_URL) return false;
+  // Microsoft Store installs are updated by the Store.
+  if (process.windowsStore) return false;
   // On Linux only the AppImage and the .deb / .rpm packages can replace themselves.
   if (process.platform === 'linux') return Boolean(process.env.APPIMAGE) || installer.linuxPackageFormat() !== null;
   return true;

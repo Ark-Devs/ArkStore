@@ -40,6 +40,14 @@ msi:
   perMachine: false
   createDesktopShortcut: true
   shortcutName: ArkStore
+# Microsoft Store package (MSIX). Built only when the Partner Center identity is set up (see
+# desktop-release.yml); the Store signs it, so it needs no certificate.
+appx:
+  artifactName: ArkStore-${version}-windows-${arch}-store.${ext}
+  applicationId: ArkStore
+  displayName: ArkStore
+  backgroundColor: '#000000'
+  languages: [en-US]
 nsis:
   oneClick: false
   perMachine: false

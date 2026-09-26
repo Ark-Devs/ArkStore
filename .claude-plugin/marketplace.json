@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "arkstore",
+  "description": "ArkStore for Claude Code: find apps and MCP servers, check whether an app already exists before building it, and publish your apps to ArkStore.",
+  "owner": {
+    "name": "Ark-Devs",
+    "url": "https://github.com/Ark-Devs"
+  },
+  "plugins": [
+    {
+      "name": "arkstore",
+      "description": "Connects Claude Code to ArkStore: search open-source apps for Android, Windows, macOS and Linux, check whether an app already exists before you build it, find MCP servers and Claude Code plugins with install commands, and publish your own app from its GitHub repo.",
+      "version": "1.0.0",
+      "author": { "name": "Ark-Devs" },
+      "source": "./agent-plugins/arkstore",
+      "category": "development",
+      "homepage": "https://github.com/Ark-Devs/ArkStore",
+      "keywords": ["app store", "mcp", "github releases", "publish", "android", "desktop"]
+    }
+  ]
+}
