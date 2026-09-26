@@ -4,6 +4,7 @@ import { Globe } from 'phosphor-react-native/src/icons/Globe';
 import { Linking, ScrollView, View } from 'react-native';
 
 import { InstallGuideTabs } from '@/components/agents/install-guide';
+import { RepoExplorer } from '@/components/agents/repo-explorer';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Button } from '@/components/ui/button';
 import { DotRule } from '@/components/ui/dots';
@@ -13,6 +14,7 @@ import { TopBar } from '@/components/ui/top-bar';
 import { installSummary } from '@/lib/agent-install';
 import { useAgentTool } from '@/lib/agents';
 import { relativeDate } from '@/lib/format';
+import { githubRepoOf } from '@/lib/github/explore';
 import { friendlyError } from '@/lib/supabase';
 import { space, useColors } from '@/theme';
 
@@ -27,6 +29,7 @@ export default function AgentToolScreen() {
   const c = useColors();
   const tool = useAgentTool(id);
   const t = tool.data;
+  const repo = githubRepoOf(t?.repo_url);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -79,6 +82,8 @@ export default function AgentToolScreen() {
               <InstallGuideTabs tool={t} />
             </View>
           </View>
+
+          {repo ? <RepoExplorer fullName={repo} /> : null}
 
           <DotRule style={{ marginHorizontal: space.gutter }} />
           <Txt variant="caption" color="text3" style={{ paddingHorizontal: space.gutter }}>

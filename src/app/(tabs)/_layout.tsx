@@ -14,6 +14,7 @@ export default function TabsLayout() {
       >
         <Tabs.Screen name="index" />
         <Tabs.Screen name="apps" />
+        <Tabs.Screen name="agents" />
         <Tabs.Screen name="updates" />
         <Tabs.Screen name="search" />
         <Tabs.Screen name="studio" />

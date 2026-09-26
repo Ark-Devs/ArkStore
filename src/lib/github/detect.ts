@@ -117,6 +117,9 @@ async function api<T>(path: string, opts: Options): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** GET https://api.github.com<path>; throws GitHubError with a readable message. */
+export const githubJson = <T>(path: string, opts: Pick<Options, 'token' | 'fetch' | 'signal'> = {}) => api<T>(path, opts);
+
 async function raw(fullName: string, branch: string, path: string, opts: Options): Promise<string | null> {
   try {
     const res = await (opts.fetch ?? fetch)(`${RAW}/${fullName}/${branch}/${encodePath(path)}`, {

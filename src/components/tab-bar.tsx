@@ -3,6 +3,7 @@ import { ArrowsClockwise } from 'phosphor-react-native/src/icons/ArrowsClockwise
 import { Code } from 'phosphor-react-native/src/icons/Code';
 import { MagnifyingGlass } from 'phosphor-react-native/src/icons/MagnifyingGlass';
 import { Newspaper } from 'phosphor-react-native/src/icons/Newspaper';
+import { Robot } from 'phosphor-react-native/src/icons/Robot';
 import { SquaresFour } from 'phosphor-react-native/src/icons/SquaresFour';
 import type { Icon } from 'phosphor-react-native';
 import { Platform, useWindowDimensions, View } from 'react-native';
@@ -20,6 +21,7 @@ type BottomTabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs
 const TABS: Record<string, { label: string; icon: Icon }> = {
   index: { label: 'Today', icon: Newspaper },
   apps: { label: 'Apps', icon: SquaresFour },
+  agents: { label: 'Agents', icon: Robot },
   updates: { label: 'Updates', icon: ArrowsClockwise },
   search: { label: 'Search', icon: MagnifyingGlass },
   studio: { label: 'Studio', icon: Code },

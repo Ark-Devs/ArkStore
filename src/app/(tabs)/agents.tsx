@@ -5,21 +5,25 @@ import { PlugsConnected } from 'phosphor-react-native/src/icons/PlugsConnected';
 import { XCircle } from 'phosphor-react-native/src/icons/XCircle';
 import { useEffect, useState } from 'react';
 import { FlatList, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AgentRow } from '@/components/agents/agent-row';
 import { DotGrid, DotRule } from '@/components/ui/dots';
 import { Chip, EmptyState, RowSkeleton } from '@/components/ui/layout';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
-import { TopBar } from '@/components/ui/top-bar';
 import { useAgentTools, type AgentKind } from '@/lib/agents';
+import { githubRepoOf } from '@/lib/github/explore';
 import { friendlyError } from '@/lib/supabase';
 import { fonts, radius, space, useColors } from '@/theme';
 
-const KINDS: { key: AgentKind | null; label: string }[] = [
+type Filter = AgentKind | 'repos' | null;
+
+const FILTERS: { key: Filter; label: string }[] = [
   { key: null, label: 'All' },
   { key: 'mcp', label: 'MCP servers' },
   { key: 'plugin', label: 'Claude Code plugins' },
+  { key: 'repos', label: 'Open source' },
 ];
 
 function useDebounced<T>(value: T, ms = 250) {
@@ -31,34 +35,40 @@ function useDebounced<T>(value: T, ms = 250) {
   return v;
 }
 
-/** MCP servers and Claude Code plugins, with install commands for Claude Code, Codex and Claude Desktop. */
+/**
+ * The agent store: MCP servers and Claude Code plugins, with install commands for Claude Code,
+ * Codex and Claude Desktop, and their GitHub repos to explore ("Open source").
+ */
 export default function AgentsScreen() {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const [kind, setKind] = useState<AgentKind | null>(null);
+  const [filter, setFilter] = useState<Filter>(null);
   const term = useDebounced(query.trim());
-  const tools = useAgentTools(term, kind);
+  const repos = filter === 'repos';
+  const tools = useAgentTools(term, repos ? null : filter, repos ? 100 : 40);
+  const data = repos ? (tools.data ?? []).filter((t) => githubRepoOf(t.repo_url)) : (tools.data ?? []);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar />
       <FlatList
-        data={tools.data ?? []}
+        data={data}
         keyExtractor={(t) => t.id}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        contentContainerStyle={{ paddingBottom: 60 }}
+        contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 120 }}
         ListHeaderComponent={
           <View style={{ gap: 18, marginBottom: 10 }}>
             <View style={{ paddingHorizontal: space.gutter, gap: 6 }}>
               <Txt variant="label" color="text2">
                 For Claude, Codex and other agents
               </Txt>
-              <Txt variant="display" accessibilityRole="header">
-                AI agents
+              <Txt variant="hero" accessibilityRole="header">
+                Agents
               </Txt>
               <Txt variant="callout" color="text2">
-                MCP servers from the official MCP registry and Claude Code plugins, with the exact command to install each one.
+                MCP servers from the official MCP registry and Claude Code plugins, with the exact command to install each one
+                and the repo behind it to explore.
               </Txt>
             </View>
 
@@ -114,8 +124,8 @@ export default function AgentsScreen() {
             </View>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: space.gutter }}>
-              {KINDS.map((k) => (
-                <Chip key={k.label} label={k.label} active={kind === k.key} onPress={() => setKind(k.key)} />
+              {FILTERS.map((f) => (
+                <Chip key={f.label} label={f.label} active={filter === f.key} onPress={() => setFilter(f.key)} />
               ))}
             </View>
           </View>
