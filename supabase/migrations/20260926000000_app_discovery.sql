@@ -50,7 +50,7 @@ as $$
     when t ~ '(health|fitness|workout|medical)' then 'health'
     when t ~ '(\mmaps?\M|navigation|openstreetmap|\mosm\M|\mgps\M)' then 'maps'
     when t ~ 'weather' then 'weather'
-    when t ~ '(file.?manager|\mfiles\M|\msync|backup|download manager|torrent|archiver|\mzip\M|cloud storage)' then 'files'
+    when t ~ '(file.?manager|\msync|backup|download manager|torrent|archiver|\mzip\M|cloud storage)' then 'files'
     when t ~ '(\mnotes?\M|note.?taking|todo|to-do|\mtasks?\M|calendar|markdown|office|productivity|knowledge|clipboard|pdf)' then 'productivity'
     when t ~ '(developer|terminal|\mide\M|code editor|\mgit\M|database|\msql\M|\mapi\M|devtools|docker|kubernetes|\mllm\M|\mai\M)' then 'developer'
     else 'tools'
@@ -188,11 +188,3 @@ $$;
 
 revoke all on function arkstore_private.discover_apps(integer, integer) from public, anon, authenticated;
 revoke all on function arkstore_private.publish_discovered() from public, anon, authenticated;
-
-select cron.unschedule(jobname) from cron.job
- where jobname in ('arkstore-curated-publish', 'arkstore-discover-first', 'arkstore-discover');
-
--- 00:00 and then every 30 minutes until 05:00 Asia/Kolkata (UTC+5:30) = 18:30 to 23:30 UTC.
-select cron.schedule('arkstore-discover-first', '30 18 * * *', 'select arkstore_private.discover_apps()');
-select cron.schedule('arkstore-discover', '*/30 19-23 * * *', 'select arkstore_private.discover_apps()');
-select cron.schedule('arkstore-curated-publish', '*/10 * * * *', 'select arkstore_private.publish_discovered()');
