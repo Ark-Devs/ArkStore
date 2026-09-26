@@ -15,6 +15,7 @@ import { AppRow } from '@/components/store/app-row';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Button } from '@/components/ui/button';
 import { DotGrid, DotRule } from '@/components/ui/dots';
+import { AgentsCard } from '@/components/agents/agents-card';
 import { EmptyState, LargeTitleScreen, RowSkeleton, SectionHeader } from '@/components/ui/layout';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
@@ -335,6 +336,11 @@ export default function StudioScreen() {
           )}
         </>
       )}
+      {ready ? (
+        <View style={{ marginTop: 28 }}>
+          <AgentsCard variant="connect" />
+        </View>
+      ) : null}
     </LargeTitleScreen>
   );
 }

@@ -50,6 +50,7 @@ const FRIENDLY: Record<string, string> = {
   not_app_owner: "Only the app's developer can do that.",
   app_not_found: 'This app is no longer listed.',
   device_not_found: 'That device is already signed out.',
+  too_many_tokens: 'You have 10 agent tokens already. Revoke one you no longer use first.',
   PGRST205: "ArkStore's database isn't set up yet. Run supabase/setup.sql in your Supabase project.",
   PGRST202: "ArkStore's database needs an update. Run supabase/setup.sql in your Supabase project again.",
   '42703': "ArkStore's database needs an update. Run supabase/setup.sql in your Supabase project again.",

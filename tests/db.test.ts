@@ -623,6 +623,63 @@ describe('supabase schema', () => {
     assert.deepEqual(left.rows.map((r: any) => r.device_id), ['laptop-00000001']);
   });
 
+  test('agents: tokens are hashed, private to their owner, and publish only the owner’s repos', async () => {
+    await mock('/repos/alice/pdf-studio', 200, repoJson('alice/pdf-studio', { description: 'Edit PDF files on your desktop', topics: ['pdf', 'desktop'] }));
+    await mock('/repos/alice/pdf-studio/releases?per_page=15', 200, [release('v2.1', ['PDF-Studio-2.1-windows-x64.exe', 'pdf-studio_2.1_amd64.deb'])]);
+
+    await assert.rejects(as(null, `select * from public.create_api_token('x')`), /permission denied/);
+    const created = (await as(ALICE, `select * from public.create_api_token('Claude Code')`)).rows[0] as any;
+    assert.match(created.token, /^ark_[0-9a-f]{64}$/);
+    const stored = (await db.query<any>('select * from public.api_tokens')).rows;
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].name, 'Claude Code');
+    assert.notEqual(stored[0].token_hash, created.token, 'only the hash is kept');
+    assert.equal((await as(BOB, 'select * from public.api_tokens')).rows.length, 0, "other people can't see your tokens");
+    assert.equal((await as(ALICE, 'select * from public.api_tokens')).rows.length, 1);
+
+    // What the MCP server does with it (as anon, with the token as the only credential).
+    await assert.rejects(as(null, `select public.mcp_whoami('ark_nope')`), /invalid_token/);
+    const who = (await as(null, 'select public.mcp_whoami($1) as w', [created.token])).rows[0] as any;
+    assert.equal(who.w.github_login, 'alice');
+
+    await assert.rejects(as(null, `select * from public.mcp_publish($1, '{"repo": "bob/app"}')`, [created.token]), /not_repo_owner/);
+    const app = (await as(null, `select * from public.mcp_publish($1, '{"repo": "https://github.com/alice/pdf-studio", "name": ""}')`, [created.token])).rows[0] as any;
+    assert.equal(app.owner_id, ALICE);
+    assert.equal(app.name, 'pdf-studio', 'empty values fall back to the repo');
+    assert.equal(app.subtitle, 'Edit PDF files on your desktop');
+    assert.equal(app.category, 'productivity', 'category guessed from the repo');
+    assert.deepEqual([...app.platforms].sort(), ['linux', 'windows']);
+
+    const mine = (await as(null, 'select repo_full_name from public.mcp_my_apps($1)', [created.token])).rows.map((r: any) => r.repo_full_name);
+    assert.ok(mine.includes('alice/pdf-studio'));
+    const used = (await db.query<any>('select last_used_at from public.api_tokens')).rows[0];
+    assert.ok(used.last_used_at, 'last use is recorded');
+
+    // Revoking works and the token stops working.
+    await as(ALICE, 'delete from public.api_tokens');
+    await assert.rejects(as(null, 'select public.mcp_whoami($1)', [created.token]), /invalid_token/);
+  });
+
+  test('agents: search_apps finds apps by what they do; search_agent_tools finds MCP servers and plugins', async () => {
+    const hits = (await as(null, `select repo_full_name from public.search_apps('pdf editor', 'linux')`)).rows.map((r: any) => r.repo_full_name);
+    assert.equal(hits[0], 'alice/pdf-studio');
+    const android = (await as(null, `select repo_full_name from public.search_apps('pdf editor', 'android')`)).rows.map((r: any) => r.repo_full_name);
+    assert.ok(!android.includes('alice/pdf-studio'), 'platform filter');
+
+    await db.exec(`
+      insert into public.agent_tools (key, kind, source, name, title, description, packages) values
+        ('mcp:io.github.acme/pg', 'mcp', 'registry', 'pg', 'Postgres', 'Query PostgreSQL databases', '[{"registryType":"npm","identifier":"@acme/pg-mcp","version":"1.2.0"}]'),
+        ('plugin:market/review', 'plugin', 'marketplace', 'review', 'Review', 'Code review for pull requests', '[]');
+      insert into public.agent_tools (key, kind, source, name, title, description, status) values
+        ('mcp:io.github.acme/old', 'mcp', 'registry', 'old', 'Old Postgres', 'Deprecated postgres server', 'hidden');
+    `);
+    const tools = (await as(null, `select key from public.search_agent_tools('postgres')`)).rows.map((r: any) => r.key);
+    assert.deepEqual(tools, ['mcp:io.github.acme/pg'], 'hidden entries stay out');
+    const plugins = (await as(null, `select key from public.search_agent_tools(null, 'plugin')`)).rows.map((r: any) => r.key);
+    assert.deepEqual(plugins, ['plugin:market/review']);
+    await assert.rejects(as(null, `insert into public.agent_tools (key, kind, source, name, title) values ('x', 'mcp', 'registry', 'x', 'x')`), /permission denied/);
+  });
+
   test('storage uploads are limited to the caller folder', async () => {
     await db.exec('grant insert on storage.objects to authenticated; grant usage on schema storage to authenticated;');
     await as(ALICE, `insert into storage.objects (bucket_id, name) values ('media', '${ALICE}/icon.png')`);

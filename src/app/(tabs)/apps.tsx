@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { ScrollView, useWindowDimensions, View } from 'react-native';
 
+import { AgentsCard } from '@/components/agents/agents-card';
 import { PlatformSwitcher } from '@/components/store/platform-switcher';
 import { CategoryIcon } from '@/components/store/category-icon';
 import { Shelf } from '@/components/store/shelf';
@@ -96,6 +97,9 @@ export default function AppsScreen() {
         loading={downloaded.isLoading}
         meta={(a) => `${compactNumber(a.downloads)} ${a.downloads === 1 ? 'download' : 'downloads'}`}
       />
+
+      <View style={{ height: 26 }} />
+      <AgentsCard variant="browse" />
 
       <View style={{ height: 26 }} />
       <SectionHeader title="Categories" />

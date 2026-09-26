@@ -7,6 +7,7 @@ import { Cpu } from 'phosphor-react-native/src/icons/Cpu';
 import { DownloadSimple } from 'phosphor-react-native/src/icons/DownloadSimple';
 import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
 import { Moon } from 'phosphor-react-native/src/icons/Moon';
+import { PlugsConnected } from 'phosphor-react-native/src/icons/PlugsConnected';
 import { SignOut } from 'phosphor-react-native/src/icons/SignOut';
 import { Sun } from 'phosphor-react-native/src/icons/Sun';
 import { useEffect, useState } from 'react';
@@ -165,6 +166,20 @@ export default function AccountScreen() {
             <Txt variant="subhead">Get ArkStore on your other devices</Txt>
             <Txt variant="callout" color="text2">
               Android, Windows, macOS and Linux. Sign in with the same GitHub account.
+            </Txt>
+          </View>
+        </Tap>
+
+        <Tap
+          onPress={() => router.push('/agents/connect')}
+          accessibilityRole="link"
+          style={{ marginHorizontal: space.gutter, marginBottom: 24, borderRadius: radius.tile, backgroundColor: c.surface, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+        >
+          <PlugsConnected size={24} color={c.accent} weight="light" />
+          <View style={{ flex: 1 }}>
+            <Txt variant="subhead">Connect an AI agent</Txt>
+            <Txt variant="callout" color="text2">
+              Use ArkStore from Claude Code, Codex or Claude, and create tokens that let an agent publish for you.
             </Txt>
           </View>
         </Tap>

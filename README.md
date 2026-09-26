@@ -20,6 +20,32 @@ App Store layouts, Nothing OS materials: dot-matrix type, true black, one red ac
 - **ArkStore updates itself.** The desktop app with electron-updater (from the release's `latest*.yml`), Android by installing the newest release's APK for the phone's CPU.
 - **Featured apps** (`apps.featured`) get App of the Day, the top of the Apps tab, and rank first in search and their category.
 
+## For AI agents
+
+ArkStore has its own MCP server, so Claude Code, Codex, Claude and other MCP clients can use it:
+
+- **Check before building.** `search_apps` finds apps by what they do ("markdown notes with sync", optionally per platform), so an agent can suggest an existing app instead of building one. `get_app` gives the listing and download links.
+- **Find MCP servers and plugins.** `search_agent_tools` searches the whole official MCP registry and Claude Code plugin marketplaces (`public.agent_tools`, refreshed overnight with app discovery); `get_install_instructions` gives the exact command for Claude Code, Codex or Claude Desktop. The app shows the same catalog and commands under **Apps → AI agents**.
+- **Publish from the agent.** `publish_app` lists the developer's repo (same ownership and release checks as Studio). It needs a personal token from **Account → Connect an AI agent**, sent as `Authorization: Bearer ark_…`. Tokens are stored hashed and can be revoked.
+
+Connect:
+
+```
+# Claude Code: plugin (MCP server + a skill that tells Claude when to use ArkStore)
+/plugin marketplace add Ark-Devs/ArkStore
+/plugin install arkstore@arkstore        # set ARKSTORE_TOKEN to publish
+
+# Claude Code, MCP server only
+claude mcp add --transport http arkstore https://<project>.supabase.co/functions/v1/mcp
+
+# Codex
+codex mcp add arkstore --url https://<project>.supabase.co/functions/v1/mcp
+```
+
+In Claude (desktop or claude.ai), add the URL under Settings → Connectors → Add custom connector (search only: custom connectors can't send the token).
+
+The server is `supabase/functions/mcp` (a Supabase Edge Function, deployed with JWT verification off since MCP clients don't send Supabase JWTs; writes are checked against the token in the database). The plugin is `agent-plugins/arkstore`, listed by `.claude-plugin/marketplace.json`.
+
 ## Stack
 
 - Expo SDK 57 (React Native, Expo Router, TypeScript), TanStack Query, Zustand
@@ -61,7 +87,7 @@ npm run desktop:dist     # installers for this OS in desktop/dist
 
 How each platform installs an app is in `desktop/installer.cjs`: Windows runs `.exe` / `.msi` installers (with the usual admin prompt when they need it); macOS copies the `.app` out of a `.dmg` or `.zip` into Applications; Linux puts AppImages in `~/Applications` with a menu entry and installs `.deb` / `.rpm` through the package manager (pkexec asks for the password).
 
-Signing: without certificates the builds are unsigned. Windows SmartScreen and macOS Gatekeeper then ask people to confirm the first launch, and macOS can't install ArkStore's own updates (the app points to the Get ArkStore page instead). Add `CSC_LINK` / `CSC_KEY_PASSWORD` (and for macOS `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`) as repository secrets to sign and notarize.
+Signing: without certificates the builds are unsigned. Windows SmartScreen and macOS Gatekeeper then ask people to confirm the first launch, and macOS can't install ArkStore's own updates (the app points to the Get ArkStore page instead). To sign, add repository secrets: `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` (Windows `.pfx`, base64), `CSC_LINK` / `CSC_KEY_PASSWORD` (macOS Developer ID `.p12`, base64) and, to notarize, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. Android APKs are signed with the key in `ANDROID_KEYSTORE_BASE64` (plus `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`), else the debug key. For the Microsoft Store, set the repository variables `MS_STORE_IDENTITY_NAME`, `MS_STORE_PUBLISHER` and `MS_STORE_PUBLISHER_NAME` (Partner Center → Product identity) and the Windows build also makes an `.appx` to upload.
 
 ## Releases
 
@@ -79,7 +105,7 @@ Each release ships one APK per CPU type (`arm64-v8a`, `armeabi-v7a`) plus `unive
 
 | Command | What it does |
 |---|---|
-| `npm test` | Database tests (real migrations in PGlite) and GitHub detection tests |
+| `npm test` | Database tests (real migrations in PGlite), MCP server tests and GitHub detection tests |
 | `npm run typecheck` | App and scripts |
 | `npm run discover` | Find trending Android apps with APK releases, write `supabase/seed.sql`. `--only-new <file>` skips repos already listed |
 | `npm run db:bundle` | Build `supabase/setup.sql` from migrations + seed |
@@ -93,7 +119,8 @@ src/app/            screens (Expo Router), including download.tsx (Get ArkStore)
 src/components/     UI kit (ui/) and store components (store/)
 src/lib/            data, installs, updates, auth, devices, GitHub detection
 desktop/            Electron shell, platform installers, packaging (electron-builder.yml)
-supabase/           migrations, seed, setup.sql
+supabase/           migrations, seed, setup.sql, functions/mcp (ArkStore's MCP server)
+agent-plugins/      the ArkStore Claude Code plugin (.claude-plugin/marketplace.json lists it)
 scripts/            discovery, SQL bundling, icon rendering
 tests/              node:test suites
 ```

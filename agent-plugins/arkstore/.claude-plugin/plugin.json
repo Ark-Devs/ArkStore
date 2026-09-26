@@ -1,0 +1,10 @@
+{
+  "name": "arkstore",
+  "version": "1.0.0",
+  "description": "Connects Claude Code to ArkStore: search apps, check whether an app already exists, find MCP servers and plugins, and publish your app.",
+  "author": { "name": "Ark-Devs", "url": "https://github.com/Ark-Devs" },
+  "homepage": "https://github.com/Ark-Devs/ArkStore",
+  "repository": "https://github.com/Ark-Devs/ArkStore",
+  "license": "MIT",
+  "keywords": ["app store", "mcp", "publish"]
+}

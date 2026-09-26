@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "arkstore": {
+      "type": "http",
+      "url": "https://wblaxicltignfcxxskjp.supabase.co/functions/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ARKSTORE_TOKEN:-}"
+      }
+    }
+  }
+}
