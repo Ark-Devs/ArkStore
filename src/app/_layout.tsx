@@ -20,6 +20,7 @@ import { useEffect } from 'react';
 import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { useLinkMyApps } from '@/lib/api';
 import '@/lib/auth';
 import '@/lib/devices';
 import { desktop, onDesktopUrl } from '@/lib/desktop';
@@ -105,6 +106,7 @@ export default function RootLayout() {
         <ThemeProvider value={navTheme}>
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
           {Platform.OS !== 'web' ? <UpdateWatcher /> : <WebUpdateWatcher />}
+          <AppLinker />
           <Stack
             screenOptions={{
               headerShown: false,
@@ -120,6 +122,12 @@ export default function RootLayout() {
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
+}
+
+/** Links the signed-in developer's apps to their account (public.link_my_apps). */
+function AppLinker() {
+  useLinkMyApps();
+  return null;
 }
 
 function WebUpdateWatcher() {

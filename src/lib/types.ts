@@ -18,6 +18,8 @@ export type StoreApp = {
   homepage: string | null;
   developer_login: string;
   developer_avatar: string | null;
+  /** GitHub login of whoever published the listing on ArkStore (null for listings nobody claimed). */
+  publisher_login: string | null;
   license: string | null;
   package_name: string | null;
   min_sdk: number | null;

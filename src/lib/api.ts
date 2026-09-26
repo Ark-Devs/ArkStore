@@ -1,4 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+
+import { getGitHubToken, useAuth } from './auth';
 
 import { useBrowse, type BrowseOS } from './stores/browse';
 import { supabase } from './supabase';
@@ -161,6 +164,31 @@ export function useMyApps(uid: string | undefined) {
         supabase.from('apps').select('*').eq('owner_id', uid!).order('created_at', { ascending: false }),
       ),
   });
+}
+
+/**
+ * After each sign-in, give the developer every unowned listing that is theirs: apps they
+ * published before, repos under their GitHub login, and (with their GitHub token) repos in
+ * their organizations they can push to. See public.link_my_apps.
+ */
+export function useLinkMyApps() {
+  const uid = useAuth((s) => s.session?.user.id);
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!uid) return;
+    let cancelled = false;
+    (async () => {
+      const token = await getGitHubToken().catch(() => null);
+      const { data, error } = await supabase.rpc('link_my_apps', { p_github_token: token });
+      if (!cancelled && !error && Array.isArray(data) && data.length > 0) {
+        await client.invalidateQueries({ queryKey: keys.mine(uid) });
+        await client.invalidateQueries({ queryKey: ['claimable'] });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, client]);
 }
 
 /** Curated listings of repos under the developer's GitHub login, ready to claim. */

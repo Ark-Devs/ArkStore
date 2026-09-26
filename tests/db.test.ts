@@ -680,6 +680,48 @@ describe('supabase schema', () => {
     await assert.rejects(as(null, `insert into public.agent_tools (key, kind, source, name, title) values ('x', 'mcp', 'registry', 'x', 'x')`), /permission denied/);
   });
 
+  test('the publisher is stored and apps are linked back to their developer on sign-in', async () => {
+    const link = (uid: string, token: string | null = null) =>
+      as(uid, 'select repo_full_name from public.link_my_apps($1)', [token]).then((r) => r.rows.map((x: any) => x.repo_full_name).sort());
+
+    // Publishing stamps the publisher's GitHub account; clients can't write it themselves.
+    await mock('/repos/alice/linked', 200, repoJson('alice/linked'));
+    await mock('/repos/alice/linked/releases?per_page=15', 200, [release('1.0', ['linked.apk'])]);
+    const pub = (await publish(ALICE, { repo: 'alice/linked', name: 'Linked', category: 'tools' })).rows[0] as any;
+    assert.equal(pub.publisher_github_id, '101');
+    assert.equal(pub.publisher_login, 'alice');
+    await assert.rejects(as(ALICE, `update public.apps set publisher_login = 'bob' where id = '${pub.id}'`), /permission denied/);
+
+    // Her ArkStore account went away (owner_id is "on delete set null"), and a curated listing of
+    // another repo of hers was added meanwhile. Signing in links both back; Bob gets neither.
+    await db.exec(`
+      update public.apps set owner_id = null where id = '${pub.id}';
+      insert into public.apps (source, repo_full_name, name, category, developer_login, status)
+      values ('curated', 'alice/found', 'Found', 'tools', 'alice', 'hidden'),
+             ('curated', 'Ark-Devs/Pushable', 'Pushable', 'tools', 'Ark-Devs', 'published'),
+             ('curated', 'Ark-Devs/ReadOnly', 'Read only', 'tools', 'Ark-Devs', 'published');
+    `);
+    assert.equal(
+      (await db.query<any>(`select publisher_login from public.apps where id = '${pub.id}'`)).rows[0].publisher_login,
+      'alice',
+      'publisher survives losing the owner',
+    );
+    assert.deepEqual(await link(BOB), []);
+    assert.deepEqual(await link(ALICE), ['alice/found', 'alice/linked']);
+    const found = (await db.query<any>(`select owner_id, source, publisher_login from public.apps where repo_full_name = 'alice/found'`)).rows[0];
+    assert.deepEqual([found.owner_id, found.source, found.publisher_login], [ALICE, 'developer', 'alice']);
+
+    // Organization repos need her token, and push access on each repo.
+    await mock('/user/orgs?per_page=100', 200, [{ login: 'Ark-Devs' }]);
+    await mock('/repos/Ark-Devs/Pushable', 200, repoJson('Ark-Devs/Pushable', { permissions: { push: true } }));
+    await mock('/repos/Ark-Devs/ReadOnly', 200, repoJson('Ark-Devs/ReadOnly', { permissions: { push: false } }));
+    assert.deepEqual(await link(ALICE), [], 'no token, no organization repos');
+    assert.deepEqual(await link(BOB, 'alice-token'), [], "a token that isn't the caller's links nothing");
+    // (Ark-Devs/DB-Crawler is left unowned by an earlier test and grants push too.)
+    assert.deepEqual(await link(ALICE, 'alice-token'), ['Ark-Devs/DB-Crawler', 'Ark-Devs/Pushable']);
+    await assert.rejects(as(null, 'select * from public.link_my_apps()'), /permission denied/);
+  });
+
   test('storage uploads are limited to the caller folder', async () => {
     await db.exec('grant insert on storage.objects to authenticated; grant usage on schema storage to authenticated;');
     await as(ALICE, `insert into storage.objects (bucket_id, name) values ('media', '${ALICE}/icon.png')`);

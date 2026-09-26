@@ -240,6 +240,9 @@ export default function AppScreen() {
         <SectionHeader title="Information" />
         <View style={{ paddingHorizontal: space.gutter }}>
           <InfoRow label="Developer" value={`@${app.developer_login}`} onPress={() => Linking.openURL(profileUrl(app.developer_login))} />
+          {app.publisher_login && app.publisher_login.toLowerCase() !== app.developer_login.toLowerCase() ? (
+            <InfoRow label="Published by" value={`@${app.publisher_login}`} onPress={() => Linking.openURL(profileUrl(app.publisher_login!))} />
+          ) : null}
           <InfoRow label="Source code" value={app.repo_full_name} onPress={() => Linking.openURL(repoUrl(app.repo_full_name))} />
           {app.homepage ? <InfoRow label="Website" value={app.homepage.replace(/^https:\/\//, '')} onPress={() => Linking.openURL(app.homepage!)} /> : null}
           <InfoRow label="Category" value={category?.name} onPress={() => router.push(`/category/${app.category}`)} />
