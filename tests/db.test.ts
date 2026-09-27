@@ -751,6 +751,52 @@ describe('supabase schema', () => {
     assert.equal((await db.query<any>('select arkstore_private.sync_catalog_feeds() as n')).rows[0].n, 0, 'read once a day');
   });
 
+  test('build status: newest run per workflow, desktop jobs, release files, cached and stale answers', async () => {
+    const run = (id: number, path: string, status: string, conclusion: string | null) => ({
+      id, path: `.github/workflows/${path}`, status, conclusion, event: 'workflow_dispatch', head_branch: 'main',
+      head_sha: 'abcdef1234', display_title: 'Release', run_started_at: '2026-09-27T15:39:00Z',
+      updated_at: '2026-09-27T15:45:00Z', html_url: `https://github.com/r/${id}`,
+    });
+    await mock('/repos/Ark-Devs/ArkStore/actions/runs?per_page=30&exclude_pull_requests=true', 200, {
+      workflow_runs: [
+        run(3, 'android-release.yml', 'in_progress', null),
+        run(2, 'desktop-release.yml', 'completed', 'success'),
+        run(1, 'android-release.yml', 'completed', 'failure'),
+        run(0, 'pages.yml', 'completed', 'success'),
+      ],
+    });
+    await mock('/repos/Ark-Devs/ArkStore/actions/runs/2/jobs?per_page=20', 200, {
+      jobs: [
+        { name: 'build (windows-latest)', status: 'completed', conclusion: 'success', steps: [] },
+        { name: 'build (macos-latest)', status: 'completed', conclusion: 'failure', steps: [{ name: 'Package', status: 'completed', conclusion: 'failure' }] },
+      ],
+    });
+    await mock('/repos/Ark-Devs/ArkStore/releases/latest', 200, {
+      tag_name: 'v1.2.5', published_at: '2026-09-27T15:45:21Z', html_url: 'https://github.com/rel',
+      assets: [{ name: 'ArkStore-1.2.5-windows-x64.exe', size: 5, download_count: 2 }],
+    });
+    const first = (await db.query<any>('select arkstore_private.build_status() s')).rows[0].s;
+    assert.equal(first.cached, false);
+    assert.equal(first.runs['android-release.yml'].id, 3, 'newest android run');
+    assert.equal(first.runs['android-release.yml'].status, 'in_progress');
+    assert.equal(first.runs['pages.yml'].conclusion, 'success');
+    assert.equal(first.desktop_jobs[1].failed_step, 'Package');
+    assert.equal(first.release.assets[0].downloads, 2);
+
+    await db.exec('delete from extensions.http_log');
+    const again = (await db.query<any>('select arkstore_private.build_status() s')).rows[0].s;
+    assert.equal(again.cached, true);
+    assert.equal((await db.query<any>('select count(*)::int n from extensions.http_log')).rows[0].n, 0, 'no GitHub request within 90 s');
+
+    await mock('/repos/Ark-Devs/ArkStore/actions/runs?per_page=30&exclude_pull_requests=true', 403, { message: 'rate limit' });
+    await mock('/rate_limit', 200, { resources: { core: { reset: 1790530000 } } });
+    const limited = (await db.query<any>('select arkstore_private.build_status(true) s')).rows[0].s;
+    assert.equal(limited.stale, true);
+    assert.equal(limited.error, 'github_limit');
+    assert.equal(limited.release.tag, 'v1.2.5', 'the last answer is kept');
+    assert.ok(limited.limit_resets_at);
+  });
+
   test('storage uploads are limited to the caller folder', async () => {
     await db.exec('grant insert on storage.objects to authenticated; grant usage on schema storage to authenticated;');
     await as(ALICE, `insert into storage.objects (bucket_id, name) values ('media', '${ALICE}/icon.png')`);
