@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 
 import { parsePlist, readIpaInfo, type Fetcher } from '../supabase/functions/ios-source/ipa';
-import { buildSource, type IosApp, type IosBuild } from '../supabase/functions/ios-source/source';
+import { buildShortcutFeed, buildSource, type IosApp, type IosBuild } from '../supabase/functions/ios-source/source';
 import { assetOS, bestAsset, classifyAsset } from '../src/lib/github/assets';
 
 // Made with Python's plistlib (FMT_BINARY): bundle ID com.example.notes, 2.3.1 (231), iOS 15.0,
@@ -184,5 +184,25 @@ describe('iOS source', () => {
     assert.equal(a.iconURL, 'https://github.com/dev.png');
     assert.deepEqual(a.versions[0], { version: '1.2', buildVersion: '5', date: '2026-09-01T00:00:00Z', localizedDescription: 'Fixes', downloadURL: 'u1', size: 42, minOSVersion: '16.0' });
     assert.deepEqual(src.featuredApps, ['com.a']);
+  });
+
+  test('the shortcut feed: sorted names, each a key for its install link', () => {
+    const app = (name: string, dev: string, files: string[]) => ({
+      name, developer_login: dev,
+      assets: files.map((f) => ({ name: f, url: `https://github.com/${dev}/r/releases/download/v1/${f}`, size: 1, os: 'ios' })),
+    });
+    const apps = [app('zeta', 'a', ['Z.ipa']), app('Alpha', 'b', ['A.ipa', 'A.tipa']), app('Alpha', 'c', ['A2.ipa']), app('None', 'd', [])];
+    const feed = buildShortcutFeed(apps, 'sidestore') as Record<string, unknown> & { names: string[] };
+    assert.deepEqual(feed.names, ['Alpha', 'Alpha (c)', 'zeta']);
+    assert.equal(feed['Alpha'], `sidestore://install?url=${encodeURIComponent('https://github.com/b/r/releases/download/v1/A.ipa')}`);
+    assert.equal(feed['None'], undefined, 'no IPA, not listed');
+    const named = buildShortcutFeed(
+      [{ name: 'moonlight-ios', repo_full_name: 'm/moonlight-ios', developer_login: 'm', assets: [{ name: 'M.ipa', url: 'u', size: 1, os: 'ios' }] }],
+      'sidestore',
+      new Map([['u', { app_name: 'Moonlight' }]]),
+    ) as { names: string[] };
+    assert.deepEqual(named.names, ['Moonlight'], "the IPA's name over a repo slug");
+    const troll = buildShortcutFeed(apps, 'trollstore') as Record<string, unknown>;
+    assert.match(String(troll['Alpha']), /^apple-magnifier:\/\/install\?url=.*A\.tipa$/, 'TrollStore build preferred');
   });
 });

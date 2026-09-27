@@ -62,6 +62,7 @@ export function Button({
           justifyContent: 'center',
           gap: 8,
           alignSelf: full ? 'stretch' : 'flex-start',
+          maxWidth: '100%',
         },
         style,
       ]}
@@ -75,7 +76,7 @@ export function Button({
             variant={size === 'sm' ? 'label' : 'headline'}
             color={fg}
             numberOfLines={1}
-            style={size === 'sm' ? { fontSize: 12, letterSpacing: 1.2 } : null}
+            style={[{ flexShrink: 1 }, size === 'sm' ? { fontSize: 12, letterSpacing: 1.2 } : null]}
           >
             {label}
           </Txt>

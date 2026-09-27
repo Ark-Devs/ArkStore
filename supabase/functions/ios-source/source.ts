@@ -57,6 +57,14 @@ export function ipaOf(app: Pick<IosApp, 'assets'>) {
 const clean = (s: string | null | undefined, n: number) => (s ?? '').replace(/\r/g, '').trim().slice(0, n);
 const bare = (v: string | null | undefined) => (v ?? '').replace(/^v(?=\d)/i, '');
 
+/** Imported listings are often named after the repo ("moonlight-ios"); the IPA knows the real name. */
+export function displayName(app: Pick<IosApp, 'name' | 'developer_login'> & { repo_full_name?: string }, b?: Pick<IosBuild, 'app_name'> | null) {
+  const name = clean(app.name, 60);
+  const slug = app.repo_full_name?.split('/')[1] ?? '';
+  const repoNamed = !name || name.toLowerCase() === slug.toLowerCase() || /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(name) || name === 'app';
+  return (repoNamed && clean(b?.app_name, 60)) || name || clean(b?.app_name, 60) || app.developer_login;
+}
+
 export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourceURL: string, website: string) {
   const listed = apps
     .map((app) => ({ app, ipa: ipaOf(app) }))
@@ -69,7 +77,7 @@ export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourc
       const date = app.latest_published_at ?? new Date().toISOString();
       const notes = clean(app.latest_release_notes, 1500);
       return {
-        name: clean(app.name, 60) || b.app_name || app.repo_full_name,
+        name: displayName(app, b),
         bundleIdentifier: b.bundle_id!,
         developerName: app.developer_login,
         subtitle: clean(app.subtitle, 120),
@@ -116,4 +124,34 @@ export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourc
     apps: listed,
     news: [],
   };
+}
+
+/**
+ * The feed the ArkStore shortcut reads (ios-source?format=shortcut): `names` for Choose from List,
+ * and each name as a key whose value is the link to open, so the shortcut needs only Get
+ * Dictionary Value. Every published iOS app with an IPA is in it (installing from a link doesn't
+ * need the IPA to have been read). `via` picks SideStore's or TrollStore's install link.
+ */
+export function buildShortcutFeed(
+  apps: (Pick<IosApp, 'name' | 'developer_login' | 'assets'> & { repo_full_name?: string })[],
+  via: 'sidestore' | 'trollstore',
+  builds: Map<string, Pick<IosBuild, 'app_name'>> = new Map(),
+) {
+  const feed: Record<string, unknown> = {};
+  const names: string[] = [];
+  for (const app of apps) {
+    const ipa = via === 'trollstore'
+      ? (app.assets ?? []).find((a) => a.os === 'ios' && /\.tipa$/i.test(a.name)) ?? ipaOf(app)
+      : ipaOf(app);
+    if (!ipa) continue;
+    const main = ipaOf(app);
+    let name = displayName(app, main ? builds.get(main.url) : null);
+    if (name === 'names' || name in feed) name = `${name} (${app.developer_login})`;
+    if (name in feed) continue;
+    const url = encodeURIComponent(ipa.url);
+    feed[name] = via === 'trollstore' ? `apple-magnifier://install?url=${url}` : `sidestore://install?url=${url}`;
+    names.push(name);
+  }
+  names.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  return { names, ...feed };
 }

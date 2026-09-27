@@ -13,7 +13,7 @@ import { DotRule } from '@/components/ui/dots';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { desktop } from '@/lib/desktop';
-import { addSourceLink, IOS_LINKS, IOS_SETUP, IOS_SOURCE_URL, openInApp } from '@/lib/ios';
+import { addSourceLink, IOS_LINKS, IOS_SETUP, IOS_SHORTCUT, IOS_SOURCE_URL, openInApp } from '@/lib/ios';
 import { catalogOS, detectVisitor } from '@/lib/platform';
 import { radius, useColors } from '@/theme';
 
@@ -142,7 +142,7 @@ function EasySetup() {
     <View key="w" style={{ gap: 8 }}>
       <Txt variant="headline">Windows</Txt>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-        <Button label="Download ArkStore-iPhone-Setup.bat" variant="accent" size="sm" onPress={() => openLink(IOS_SETUP.windowsBat)} />
+        <Button label="Download setup (.bat)" variant="accent" size="sm" onPress={() => openLink(IOS_SETUP.windowsBat)} />
         <Txt variant="caption" color="text3">
           Double-click it. If Windows asks, choose More info, then Run anyway.
         </Txt>
@@ -256,6 +256,36 @@ export function IosGuide() {
           Once the source is added, open Browse in SideStore to see ArkStore&apos;s apps, or tap GET on any iOS app here and choose
           Add to SideStore. When a developer publishes a new release, SideStore shows the update.
         </P>
+      </Section>
+
+      <Section title="The ArkStore shortcut" subtitle="Pick any iOS app on ArkStore and install it, from the Shortcuts app">
+        <P>
+          Run it (or say &quot;Hey Siri, ArkStore&quot;), choose an app from the list and SideStore installs it. The list is always
+          ArkStore&apos;s current iOS apps.
+        </P>
+        {IOS_SHORTCUT.icloud ? (
+          <Button label="Get the ArkStore shortcut" variant="accent" onPress={() => openLink(IOS_SHORTCUT.icloud)} />
+        ) : (
+          <>
+            <P>It takes two minutes to make in the Shortcuts app: tap + to start a new shortcut, name it ArkStore, then add:</P>
+            <Step n={1} title="Get Contents of URL">
+              <CodeBlock code={IOS_SHORTCUT.feed} label="URL (for TrollStore, add &via=trollstore at the end)" />
+            </Step>
+            <Step n={2} title="Get Dictionary Value">
+              <P>Get Value for the key names in Contents of URL.</P>
+            </Step>
+            <Step n={3} title="Choose from List">
+              <P>Choose from Dictionary Value. Tap the arrow to set the prompt: Install which app?</P>
+            </Step>
+            <Step n={4} title="Get Dictionary Value">
+              <P>Get Value for the key Chosen Item in Contents of URL (tap the key field, then Select Variable, then Chosen Item; tap Dictionary Value and pick Contents of URL).</P>
+            </Step>
+            <Step n={5} title="Open URLs">
+              <P>Open Dictionary Value. Tap Done. To put it on the Home Screen: share the shortcut, then Add to Home Screen.</P>
+            </Step>
+          </>
+        )}
+        <Note>SideStore needs LocalDevVPN connected to install. It asks you to confirm each install.</Note>
       </Section>
 
       <Section title="4. Keep your apps working" subtitle="How the 7-day limit is handled, and Apple's limits">

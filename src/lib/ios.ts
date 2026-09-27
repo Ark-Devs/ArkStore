@@ -14,6 +14,21 @@ export const addSourceLink = {
   altstore: `altstore://source?url=${enc(IOS_SOURCE_URL)}`,
 };
 
+/** SideStore installs one app straight from its IPA link (docs.sidestore.io/docs/advanced/url-schema). */
+export const sideStoreInstallLink = (ipaUrl: string) => `sidestore://install?url=${enc(ipaUrl)}`;
+
+/**
+ * The ArkStore shortcut for the Shortcuts app: it reads a list of every iOS app ArkStore lists
+ * (ios-source?format=shortcut), lets you pick one and opens its install link in SideStore (or
+ * TrollStore). `icloud` is the shared iCloud link once the shortcut is published; until then the
+ * guide shows how to build it.
+ */
+export const IOS_SHORTCUT = {
+  feed: `${IOS_SOURCE_URL}?format=shortcut`,
+  trollstoreFeed: `${IOS_SOURCE_URL}?format=shortcut&via=trollstore`,
+  icloud: '',
+};
+
 /** TrollStore's own URL scheme: installs an IPA from a link, permanently. */
 export const trollStoreInstallLink = (ipaUrl: string) => `apple-magnifier://install?url=${enc(ipaUrl)}`;
 

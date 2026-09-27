@@ -2,11 +2,11 @@
 // ArkStore's iOS apps as an AltStore-format source for SideStore, AltStore and Feather.
 // Public and read-only (deployed with verify_jwt off). It reads IPAs it hasn't seen yet
 // (a few per request; ?refresh=N reads up to 25, which pg_cron does every 30 minutes) and caches
-// what it learns in public.ios_builds.
+// what it learns in public.ios_builds. ?format=shortcut is the list the ArkStore shortcut reads.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 import { readIpaInfo } from './ipa.ts';
-import { buildSource, ipaOf, type IosApp, type IosBuild } from './source.ts';
+import { buildShortcutFeed, buildSource, ipaOf, type IosApp, type IosBuild } from './source.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 // ios_builds is only writable with the service role; nothing here is exposed beyond the public catalog.
@@ -45,6 +45,16 @@ Deno.serve(async (req) => {
       .limit(1000);
     if (error) throw new Error(error.message);
     const apps = (data ?? []) as IosApp[];
+
+    // The ArkStore shortcut's list: names and install links (no IPAs are read for it).
+    if (params.get('format') === 'shortcut') {
+      const builds = await loadBuilds(apps.map((a) => ipaOf(a)?.url).filter((u): u is string => Boolean(u)));
+      const feed = buildShortcutFeed(apps, params.get('via') === 'trollstore' ? 'trollstore' : 'sidestore', builds);
+      return new Response(JSON.stringify(feed), {
+        headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+      });
+    }
+
     const sizes = new Map(apps.map((a) => ipaOf(a)).filter(Boolean).map((f) => [f!.url, f!.size] as const));
     const urls = [...sizes.keys()];
     const builds = await loadBuilds(urls);

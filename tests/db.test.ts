@@ -749,6 +749,11 @@ describe('supabase schema', () => {
     const queued = (await db.query<any>('select repo from arkstore_private.import_queue order by repo')).rows.map((r) => r.repo);
     assert.deepEqual(queued, ['dave/emu-ios', 'frank/term'], 'GitHub-hosted, not tweaked, once each');
     assert.equal((await db.query<any>('select arkstore_private.sync_catalog_feeds() as n')).rows[0].n, 0, 'read once a day');
+    const denied = async (t: string) => (await db.query<any>('select $1 ~* arkstore_private.deny_pattern() as d', [t])).rows[0].d;
+    assert.equal(await denied('YouTube++ with tweaks'), true);
+    assert.equal(await denied('Taurine jailbreak for iOS 14'), true);
+    assert.equal(await denied('Notepad++ source code editor'), false, 'real apps with ++ in the name');
+    assert.equal(await denied('UTM: virtual machines, no jailbreak needed'), false);
   });
 
   test('build status: newest run per workflow, desktop jobs, release files, cached and stale answers', async () => {
