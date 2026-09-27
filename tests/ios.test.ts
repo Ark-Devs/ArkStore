@@ -6,6 +6,7 @@ import { deflateRawSync } from 'node:zlib';
 import { parsePlist, readIpaInfo, type Fetcher } from '../supabase/functions/ios-source/ipa';
 import { buildShortcutFeed, buildSource, type IosApp, type IosBuild } from '../supabase/functions/ios-source/source';
 import { assetOS, bestAsset, classifyAsset } from '../src/lib/github/assets';
+import { provisionExpiry, reminderTimes } from '../src/lib/provision';
 
 // Made with Python's plistlib (FMT_BINARY): bundle ID com.example.notes, 2.3.1 (231), iOS 15.0,
 // "Notes Pro", a camera usage string, plus nested arrays / dicts / a boolean.
@@ -208,5 +209,16 @@ describe('iOS source', () => {
     assert.equal(menu['Setup guide'], 'https://g');
     const troll = buildShortcutFeed(apps, 'trollstore') as Record<string, unknown>;
     assert.match(String(troll['Alpha']), /^apple-magnifier:\/\/install\?url=.*A\.tipa$/, 'TrollStore build preferred');
+  });
+
+  test('reads the signature expiry from a provisioning profile, and when to remind', () => {
+    const profile = '0\x82\x0b\x01binary<?xml version="1.0"?><plist><dict><key>CreationDate</key><date>2026-09-27T10:00:00Z</date>'
+      + '<key>ExpirationDate</key>\n\t<date>2026-10-04T10:00:00Z</date></dict></plist>\x00\xa0more';
+    const expiry = provisionExpiry(profile)!;
+    assert.equal(expiry.toISOString(), '2026-10-04T10:00:00.000Z');
+    assert.equal(provisionExpiry('no plist here'), null);
+    const at = reminderTimes(expiry, new Date('2026-09-27T12:00:00Z'));
+    assert.deepEqual(at.map((r) => r.at.toISOString()), ['2026-10-01T10:00:00.000Z', '2026-10-03T10:00:00.000Z']);
+    assert.equal(reminderTimes(expiry, new Date('2026-10-02T00:00:00Z')).length, 1, 'past reminders are skipped');
   });
 });

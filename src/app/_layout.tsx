@@ -24,6 +24,7 @@ import '@/lib/auth';
 import '@/lib/devices';
 import { desktop, onDesktopUrl } from '@/lib/desktop';
 import { isPackageInstalled, reconcileDesktopApps, reconcileInstallers } from '@/lib/install';
+import { openExternal, scheduleExpiryReminders } from '@/lib/ios-expiry';
 import { useInstalled } from '@/lib/stores/installed';
 import { checkForUpdates, setupUpdateChecks } from '@/lib/updates';
 import { useColors, useScheme } from '@/theme';
@@ -54,6 +55,8 @@ function UpdateWatcher() {
         await reconcileInstallers().catch(() => undefined);
       }
       await checkForUpdates({ notify: false }).catch(() => undefined);
+      // iPhone: move the "apps expire in 3 days" reminders to the current signature.
+      await scheduleExpiryReminders().catch(() => undefined);
     };
     refresh();
     const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());
@@ -63,8 +66,10 @@ function UpdateWatcher() {
   // Tapping an update notification opens the app page or the Updates tab.
   const response = Notifications.useLastNotificationResponse();
   useEffect(() => {
-    const url = response?.notification.request.content.data?.url;
-    if (typeof url === 'string') router.push(url as never);
+    const data = response?.notification.request.content.data;
+    if (typeof data?.url === 'string') router.push(data.url as never);
+    // An expiry reminder opens SideStore to refresh.
+    openExternal(data?.open);
   }, [response]);
 
   return null;
