@@ -258,34 +258,46 @@ export function IosGuide() {
         </P>
       </Section>
 
-      <Section title="The ArkStore shortcut" subtitle="Pick any iOS app on ArkStore and install it, from the Shortcuts app">
+      <Section title="The ArkStore shortcut" subtitle="One tap on your iPhone checks everything and installs any app">
         <P>
-          Run it (or say &quot;Hey Siri, ArkStore&quot;), choose an app from the list and SideStore installs it. The list is always
-          ArkStore&apos;s current iOS apps.
+          Run it (or say &quot;Hey Siri, ArkStore&quot;): it checks you&apos;re on Wi-Fi, connects LocalDevVPN, then shows a menu of every
+          iOS app on ArkStore, plus Add ArkStore to SideStore and the setup guide. Pick an app and SideStore installs it.
         </P>
         {IOS_SHORTCUT.icloud ? (
           <Button label="Get the ArkStore shortcut" variant="accent" onPress={() => openLink(IOS_SHORTCUT.icloud)} />
         ) : (
           <>
-            <P>It takes two minutes to make in the Shortcuts app: tap + to start a new shortcut, name it ArkStore, then add:</P>
-            <Step n={1} title="Get Contents of URL">
-              <CodeBlock code={IOS_SHORTCUT.feed} label="URL (for TrollStore, add &via=trollstore at the end)" />
+            <P>Make it once in the Shortcuts app: tap +, name it ArkStore, and add these actions in order.</P>
+            <Step n={1} title="Get Network Details">
+              <P>Get the Network Name of Wi-Fi.</P>
             </Step>
-            <Step n={2} title="Get Dictionary Value">
+            <Step n={2} title="If">
+              <P>
+                If Network Name does not have any value: add Show Alert with the text &quot;Connect to Wi-Fi first. SideStore can&apos;t install
+                over mobile data.&quot; (its Cancel button stops the shortcut). Leave Otherwise empty.
+              </P>
+            </Step>
+            <Step n={3} title="Set VPN">
+              <P>Connect, and pick LocalDevVPN.</P>
+            </Step>
+            <Step n={4} title="Get Contents of URL">
+              <CodeBlock code={IOS_SHORTCUT.feed} label="The URL. It's for the Shortcuts app only, not a SideStore source." />
+            </Step>
+            <Step n={5} title="Get Dictionary Value">
               <P>Get Value for the key names in Contents of URL.</P>
             </Step>
-            <Step n={3} title="Choose from List">
-              <P>Choose from Dictionary Value. Tap the arrow to set the prompt: Install which app?</P>
+            <Step n={6} title="Choose from List">
+              <P>Choose from Dictionary Value, with the prompt ArkStore.</P>
             </Step>
-            <Step n={4} title="Get Dictionary Value">
-              <P>Get Value for the key Chosen Item in Contents of URL (tap the key field, then Select Variable, then Chosen Item; tap Dictionary Value and pick Contents of URL).</P>
+            <Step n={7} title="Get Dictionary Value">
+              <P>Get Value for the key Chosen Item in Contents of URL (tap the key and use Select Variable).</P>
             </Step>
-            <Step n={5} title="Open URLs">
-              <P>Open Dictionary Value. Tap Done. To put it on the Home Screen: share the shortcut, then Add to Home Screen.</P>
+            <Step n={8} title="Open URLs">
+              <P>Open Dictionary Value. Tap Done, then share it and choose Add to Home Screen.</P>
             </Step>
           </>
         )}
-        <Note>SideStore needs LocalDevVPN connected to install. It asks you to confirm each install.</Note>
+        <Note>SideStore asks you to confirm each install. With TrollStore instead, add &amp;via=trollstore to the URL in step 4.</Note>
       </Section>
 
       <Section title="4. Keep your apps working" subtitle="How the 7-day limit is handled, and Apple's limits">

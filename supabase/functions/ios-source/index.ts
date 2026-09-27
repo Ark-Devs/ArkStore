@@ -51,12 +51,19 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
     const apps = (data ?? []) as IosApp[];
 
-    // The ArkStore shortcut's list: names and install links (no IPAs are read for it).
-    if (params.get('format') === 'shortcut') {
+    // The ArkStore shortcut's list: names and install links (no IPAs are read for it). A source
+    // app given this link by mistake gets the source instead.
+    const sourceApp = /sidestore|altstore|feather/i.test(req.headers.get('user-agent') ?? '');
+    if (params.get('format') === 'shortcut' && !sourceApp) {
       const builds = await loadBuilds(apps.map((a) => ipaOf(a)?.url).filter((u): u is string => Boolean(u)));
-      const feed = buildShortcutFeed(apps, params.get('via') === 'trollstore' ? 'trollstore' : 'sidestore', builds);
+      const via = params.get('via') === 'trollstore' ? 'trollstore' : 'sidestore';
+      const extras: [string, string][] = [
+        ...(via === 'sidestore' ? [['Add ArkStore to SideStore (for updates)', `sidestore://source?url=${encodeURIComponent(SOURCE_URL)}`] as [string, string]] : []),
+        ['First-time setup guide', WEBSITE],
+      ];
+      const feed = buildShortcutFeed(apps, via, builds, extras);
       return new Response(JSON.stringify(feed), {
-        headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300', Vary: 'Accept' },
+        headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300', Vary: 'Accept, User-Agent' },
       });
     }
 
@@ -87,7 +94,7 @@ Deno.serve(async (req) => {
 
     const source = buildSource(apps, builds, SOURCE_URL, WEBSITE);
     return new Response(JSON.stringify(source), {
-      headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300', Vary: 'Accept' },
+      headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300', Vary: 'Accept, User-Agent' },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message ?? e) }), {

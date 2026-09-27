@@ -184,6 +184,7 @@ describe('iOS source', () => {
     assert.equal(a.iconURL, 'https://github.com/dev.png');
     assert.deepEqual(a.versions[0], { version: '1.2', buildVersion: '5', date: '2026-09-01T00:00:00Z', localizedDescription: 'Fixes', downloadURL: 'u1', size: 42, minOSVersion: '16.0' });
     assert.deepEqual(src.featuredApps, ['com.a']);
+    assert.ok(!('marketplaceID' in a), 'marketplaceID marks notarized apps, which SideStore refuses');
   });
 
   test('the shortcut feed: sorted names, each a key for its install link', () => {
@@ -202,6 +203,9 @@ describe('iOS source', () => {
       new Map([['u', { app_name: 'Moonlight' }]]),
     ) as { names: string[] };
     assert.deepEqual(named.names, ['Moonlight'], "the IPA's name over a repo slug");
+    const menu = buildShortcutFeed(apps, 'sidestore', new Map(), [['Setup guide', 'https://g']]) as Record<string, unknown> & { names: string[] };
+    assert.deepEqual(menu.names, ['Setup guide', 'Alpha', 'Alpha (c)', 'zeta'], 'menu entries first');
+    assert.equal(menu['Setup guide'], 'https://g');
     const troll = buildShortcutFeed(apps, 'trollstore') as Record<string, unknown>;
     assert.match(String(troll['Alpha']), /^apple-magnifier:\/\/install\?url=.*A\.tipa$/, 'TrollStore build preferred');
   });
