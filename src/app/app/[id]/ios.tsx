@@ -14,7 +14,7 @@ import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
 import { fileSize, shortVersion } from '@/lib/format';
 import { rankAssets } from '@/lib/github/assets';
-import { openInApp, trollStoreInstallLink } from '@/lib/ios';
+import { openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
 import { catalogOS } from '@/lib/platform';
 import { friendlyError } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
@@ -86,8 +86,21 @@ export default function IosInstallScreen() {
         <DotRule />
 
         <Way
-          title="SideStore or AltStore"
-          body={`Add ArkStore's source once, then find ${app.name} in SideStore's Browse tab and tap Free. SideStore keeps it signed and shows its updates.`}
+          title="SideStore"
+          body={`Installs ${app.name} in SideStore with one tap. SideStore asks you to confirm, then keeps it signed.`}
+        >
+          {onPhone ? (
+            <Button label="Install with SideStore" variant="accent" onPress={() => openInApp(sideStoreInstallLink(ipa.url))} />
+          ) : (
+            <Txt variant="caption" color="text3">
+              Open this page on your iPhone to install with SideStore.
+            </Txt>
+          )}
+        </Way>
+
+        <Way
+          title="Get updates too"
+          body={`Add ArkStore's source to SideStore or AltStore once: ${app.name} and every other iOS app here show up in Browse, and new releases show up as updates.`}
         >
           <AddSourceButtons />
         </Way>
