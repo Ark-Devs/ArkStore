@@ -17,11 +17,13 @@ export type AgentTool = AgentToolLike & {
   repo_url: string | null;
   homepage: string | null;
   version: string | null;
+  /** Skills: the folder inside the repo. */
+  path: string | null;
   featured: boolean;
   updated_at: string;
 };
 
-export type AgentKind = 'mcp' | 'plugin';
+export type AgentKind = 'mcp' | 'plugin' | 'skill';
 
 export type ApiToken = { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null };
 
@@ -45,6 +47,18 @@ export function useAgentTools(query: string, kind: AgentKind | null, limit = 40)
       unwrap<AgentTool[]>(supabase.rpc('search_agent_tools', { p_query: q || null, p_kind: kind, p_limit: limit })),
     staleTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev,
+  });
+}
+
+/** How many skills, plugins and MCP servers the catalog lists. */
+export function useAgentCounts() {
+  return useQuery({
+    queryKey: ['agent-counts'],
+    queryFn: async () => {
+      const rows = await unwrap<{ kind: AgentKind; total: number }[]>(supabase.rpc('agent_tool_counts'));
+      return Object.fromEntries(rows.map((r) => [r.kind, Number(r.total)])) as Partial<Record<AgentKind, number>>;
+    },
+    staleTime: 60 * 60 * 1000,
   });
 }
 

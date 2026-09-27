@@ -40,13 +40,17 @@ export type RegistryRemote = {
 };
 
 export type AgentToolLike = {
-  kind: 'mcp' | 'plugin';
+  kind: 'mcp' | 'plugin' | 'skill';
   name: string;
   title: string;
   packages?: RegistryPackage[] | null;
   remotes?: RegistryRemote[] | null;
+  /** Plugins: the marketplace's name. */
   marketplace?: string | null;
+  /** Plugins: the repo to add the marketplace from. Skills: the repo the skill lives in (owner/name). */
   marketplace_repo?: string | null;
+  /** Skills: the skill's folder on GitHub. */
+  repo_url?: string | null;
 };
 
 export type InstallClient = 'claude-code' | 'codex' | 'claude-desktop';
@@ -241,8 +245,26 @@ function mcpGuides(tool: AgentToolLike, launch: Launch): InstallGuide[] {
   ];
 }
 
+/** Agent skills install with the open `skills` CLI (npx skills), which knows where each agent keeps them. */
+function skillGuides(tool: AgentToolLike): InstallGuide[] {
+  const add = (agent: string) => `npx skills add ${tool.marketplace_repo} --skill ${quote(tool.name)} -g -a ${agent} -y`;
+  return [
+    { client: 'claude-code', supported: true, steps: [{ kind: 'command', label: 'Run in your terminal', code: add('claude-code') }] },
+    { client: 'codex', supported: true, steps: [{ kind: 'command', label: 'Run in your terminal', code: add('codex') }] },
+    {
+      client: 'claude-desktop',
+      supported: Boolean(tool.repo_url),
+      steps: [
+        { kind: 'note', label: "In Claude (desktop or claude.ai): download the skill's folder as a ZIP and upload it under Settings → Capabilities → Skills." },
+        ...(tool.repo_url ? [{ kind: 'command' as const, label: 'Skill folder', code: tool.repo_url }] : []),
+      ],
+    },
+  ];
+}
+
 /** Install instructions for every client. */
 export function installGuides(tool: AgentToolLike): InstallGuide[] {
+  if (tool.kind === 'skill') return skillGuides(tool);
   if (tool.kind === 'plugin') {
     const market = tool.marketplace ?? '';
     return [
@@ -273,6 +295,7 @@ export function installGuides(tool: AgentToolLike): InstallGuide[] {
 /** One line for listings: how it runs. */
 export function installSummary(tool: AgentToolLike): string {
   if (tool.kind === 'plugin') return `Claude Code plugin · ${tool.marketplace ?? 'marketplace'}`;
+  if (tool.kind === 'skill') return `Agent skill · ${tool.marketplace_repo ?? 'GitHub'}`;
   const launch = launchFor(tool);
   if (!launch) return 'MCP server';
   if (launch.type === 'remote') return 'Hosted MCP server';

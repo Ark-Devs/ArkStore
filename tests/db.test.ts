@@ -680,6 +680,22 @@ describe('supabase schema', () => {
     await assert.rejects(as(null, `insert into public.agent_tools (key, kind, source, name, title) values ('x', 'mcp', 'registry', 'x', 'x')`), /permission denied/);
   });
 
+  test('agents: SKILL.md front matter is read in all its YAML shapes', async () => {
+    const field = async (md: string, f: string) =>
+      ((await db.query<any>('select arkstore_private.frontmatter_field($1, $2) as v', [md, f])).rows[0].v as string | null);
+    const plain = '---\nname: pdf\ndescription: Read and fill PDF forms.\nlicense: MIT\n---\n# PDF\n';
+    assert.equal(await field(plain, 'name'), 'pdf');
+    assert.equal(await field(plain, 'description'), 'Read and fill PDF forms.');
+    assert.equal(await field(plain, 'missing'), null);
+    const quoted = '\r\n---\r\nname: "brand-guidelines"\r\ndescription: \'Apply the brand\'\r\n---\r\n';
+    assert.equal(await field(quoted, 'name'), 'brand-guidelines');
+    assert.equal(await field(quoted, 'description'), 'Apply the brand');
+    const folded = '---\nname: x\ndescription: >-\n  Use this skill when\n  the user asks.\nother: y\n---\nbody\ndescription: not this\n';
+    assert.equal(await field(folded, 'description'), 'Use this skill when the user asks.');
+    assert.equal(await field('# no front matter\ndescription: nope', 'description'), null);
+    assert.equal(await field('---\nname: open\n', 'name'), null, 'unterminated front matter');
+  });
+
   test('storage uploads are limited to the caller folder', async () => {
     await db.exec('grant insert on storage.objects to authenticated; grant usage on schema storage to authenticated;');
     await as(ALICE, `insert into storage.objects (bucket_id, name) values ('media', '${ALICE}/icon.png')`);

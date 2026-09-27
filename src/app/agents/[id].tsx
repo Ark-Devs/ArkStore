@@ -20,6 +20,7 @@ const SOURCE: Record<string, string> = {
   registry: 'Listed in the official MCP registry',
   marketplace: 'From a Claude Code plugin marketplace',
   arkstore: 'Made by ArkStore',
+  github: 'An agent skill on GitHub',
 };
 
 export default function AgentToolScreen() {
@@ -82,7 +83,7 @@ export default function AgentToolScreen() {
 
           <DotRule style={{ marginHorizontal: space.gutter }} />
           <Txt variant="caption" color="text3" style={{ paddingHorizontal: space.gutter }}>
-            {SOURCE[t.source] ?? ''} · last update: {relativeDate(t.updated_at)}. ArkStore doesn&apos;t review MCP servers or plugins:
+            {SOURCE[t.source] ?? ''} · last update: {relativeDate(t.updated_at)}. ArkStore doesn&apos;t review skills, plugins or MCP servers:
             check the source before you give one access to your accounts or files.
           </Txt>
         </ScrollView>

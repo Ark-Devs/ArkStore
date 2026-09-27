@@ -187,6 +187,21 @@ describe('ArkStore MCP server', () => {
     assert.deepEqual(plug[0].steps.map((s: any) => s.code), ['/plugin marketplace add anthropics/claude-plugins-official', '/plugin install code-review@claude-plugins-official']);
   });
 
+  test('skills install with the skills CLI', async () => {
+    const guides = installGuides({
+      kind: 'skill',
+      name: 'pdf',
+      title: 'Pdf',
+      marketplace_repo: 'anthropics/skills',
+      repo_url: 'https://github.com/anthropics/skills/tree/main/skills/pdf',
+    });
+    assert.equal(guides[0].steps[0].code, 'npx skills add anthropics/skills --skill pdf -g -a claude-code -y');
+    assert.equal(guides[1].steps[0].code, 'npx skills add anthropics/skills --skill pdf -g -a codex -y');
+    assert.equal(guides[2].steps.at(-1)!.code, 'https://github.com/anthropics/skills/tree/main/skills/pdf');
+    const spaced = installGuides({ kind: 'skill', name: 'Convex Best Practices', title: 'x', marketplace_repo: 'o/r' });
+    assert.equal(spaced[0].steps[0].code, "npx skills add o/r --skill 'Convex Best Practices' -g -a claude-code -y");
+  });
+
   test('batches, bad JSON and GET', async () => {
     const { body } = await rpc([
       { jsonrpc: '2.0', id: 'a', method: 'ping' },

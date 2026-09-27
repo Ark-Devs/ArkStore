@@ -36,7 +36,6 @@ export type Tool = AgentToolLike & {
   key: string;
   description: string;
   publisher: string | null;
-  repo_url: string | null;
   homepage: string | null;
   version: string | null;
   category: string | null;
@@ -62,12 +61,12 @@ const PLATFORMS = ['android', 'windows', 'macos', 'linux'];
 const TOKEN_HELP =
   'Publishing needs your ArkStore token. In ArkStore open Account → Connect an AI agent, create a token, and add it to this MCP server as the header "Authorization: Bearer ark_…".';
 
-const INSTRUCTIONS = `ArkStore is an open-source app store for Android, Windows, macOS and Linux that installs apps straight from their GitHub releases. It also lists MCP servers and Claude Code plugins.
+const INSTRUCTIONS = `ArkStore is an open-source app store for Android, Windows, macOS and Linux that installs apps straight from their GitHub releases. It also lists MCP servers, Claude Code plugins and agent skills.
 
 Use it to:
 - Check whether an app already exists before building one: search_apps with a few words describing it (optionally a platform). If something fits, suggest it instead of building from scratch.
 - Get an app's details and download links: get_app.
-- Find MCP servers and Claude Code plugins, and how to install them in Claude Code, Codex or Claude Desktop: search_agent_tools, then get_install_instructions.
+- Find MCP servers, Claude Code plugins and agent skills, and how to install them in Claude Code, Codex or Claude Desktop: search_agent_tools, then get_install_instructions.
 - Publish the user's own app: publish_app with their GitHub repo. It must have a GitHub release with an installable file (APK, EXE, MSI, DMG, AppImage, DEB...). This needs the user's ArkStore token.`;
 
 type Json = Record<string, unknown>;
@@ -115,13 +114,13 @@ function appDetails(a: App) {
 function toolSummary(t: Tool) {
   return {
     key: t.key,
-    kind: t.kind === 'plugin' ? 'Claude Code plugin' : 'MCP server',
+    kind: t.kind === 'plugin' ? 'Claude Code plugin' : t.kind === 'skill' ? 'Agent skill' : 'MCP server',
     title: t.title,
     install_name: t.name,
     publisher: t.publisher,
     description: trim(t.description, 300),
     runs_as: installSummary(t),
-    repository: t.repo_url,
+    repository: t.repo_url ?? null,
   };
 }
 
@@ -165,14 +164,14 @@ const TOOLS = [
   },
   {
     name: 'search_agent_tools',
-    title: 'Search MCP servers and plugins',
+    title: 'Search MCP servers, plugins and skills',
     description:
-      'Search ArkStore’s catalog of MCP servers (from the official MCP registry) and Claude Code plugins (from plugin marketplaces). Use get_install_instructions with a result’s key to install one.',
+      'Search ArkStore’s catalog of MCP servers (the official MCP registry), Claude Code plugins (plugin marketplaces) and agent skills (SKILL.md folders on GitHub). Use get_install_instructions with a result’s key to install one.',
     inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'What it should do, e.g. "postgres", "browser automation", "code review".' },
-        kind: { type: 'string', enum: ['mcp', 'plugin'], description: 'Only MCP servers or only Claude Code plugins.' },
+        kind: { type: 'string', enum: ['mcp', 'plugin', 'skill'], description: 'Only MCP servers, Claude Code plugins or agent skills.' },
         limit: { type: 'integer', minimum: 1, maximum: 25, default: 10 },
       },
       required: ['query'],
@@ -182,9 +181,9 @@ const TOOLS = [
   },
   {
     name: 'get_install_instructions',
-    title: 'How to install an MCP server or plugin',
+    title: 'How to install an MCP server, plugin or skill',
     description:
-      'Exact commands or config to install an MCP server or Claude Code plugin from search_agent_tools in Claude Code, Codex or Claude Desktop. Placeholders like <API_KEY> must be filled in by the user.',
+      'Exact commands or config to install an MCP server, Claude Code plugin or agent skill from search_agent_tools in Claude Code, Codex or Claude Desktop. Placeholders like <API_KEY> must be filled in by the user.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -286,7 +285,7 @@ async function callTool(store: Store, name: string, args: Json, token: string | 
       return { categories: await store.categories() };
     case 'search_agent_tools': {
       const kind = str(args.kind);
-      if (kind && kind !== 'mcp' && kind !== 'plugin') throw new ToolError('kind must be "mcp" or "plugin".');
+      if (kind && !['mcp', 'plugin', 'skill'].includes(kind)) throw new ToolError('kind must be "mcp", "plugin" or "skill".');
       const tools = await store.searchTools(str(args.query), kind, clampLimit(args.limit));
       return { count: tools.length, results: tools.map(toolSummary) };
     }
@@ -294,7 +293,7 @@ async function callTool(store: Store, name: string, args: Json, token: string | 
       const key = str(args.key);
       if (!key) throw new ToolError('Give the key from search_agent_tools.');
       const tool = await store.getTool(key);
-      if (!tool) throw new ToolError(`No MCP server or plugin with key ${key}. Use search_agent_tools to find one.`);
+      if (!tool) throw new ToolError(`Nothing with key ${key}. Use search_agent_tools to find one.`);
       const client = str(args.client) as InstallClient | null;
       const guides = installGuides(tool).filter((g) => !client || g.client === client);
       return {
