@@ -34,6 +34,11 @@ async function loadBuilds(urls: string[]) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   const params = new URL(req.url).searchParams;
+  // Someone opened the source link in a browser: send them to the guide, which has the
+  // Add to SideStore button. SideStore, AltStore, Feather and Shortcuts don't ask for HTML.
+  if ((req.headers.get('accept') ?? '').includes('text/html')) {
+    return new Response(null, { status: 302, headers: { ...CORS, Location: WEBSITE, Vary: 'Accept' } });
+  }
   try {
     const { data, error } = await supabase
       .from('apps')
@@ -51,7 +56,7 @@ Deno.serve(async (req) => {
       const builds = await loadBuilds(apps.map((a) => ipaOf(a)?.url).filter((u): u is string => Boolean(u)));
       const feed = buildShortcutFeed(apps, params.get('via') === 'trollstore' ? 'trollstore' : 'sidestore', builds);
       return new Response(JSON.stringify(feed), {
-        headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+        headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300', Vary: 'Accept' },
       });
     }
 
@@ -82,12 +87,12 @@ Deno.serve(async (req) => {
 
     const source = buildSource(apps, builds, SOURCE_URL, WEBSITE);
     return new Response(JSON.stringify(source), {
-      headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+      headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300', Vary: 'Accept' },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error).message ?? e) }), {
       status: 500,
-      headers: { ...CORS, 'Content-Type': 'application/json' },
+      headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' },
     });
   }
 });
