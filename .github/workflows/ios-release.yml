@@ -1,0 +1,117 @@
+# Builds ArkStore for iPhone and iPad as an unsigned .ipa and attaches it to the same release as
+# the other platforms. People install it with SideStore (or AltStore, TrollStore, Feather), which
+# signs it on the phone with their own Apple Account, so no Apple certificate is needed here.
+# Push a tag like v1.2.0 to release; run it by hand from the Actions tab to just build (the .ipa
+# is then a workflow artifact), or with "publish" to attach it to the current version's release.
+#
+# Needs the same repository secrets as the other releases:
+#   EXPO_PUBLIC_SUPABASE_URL   https://<project>.supabase.co
+#   EXPO_PUBLIC_SUPABASE_KEY   the Supabase publishable key
+name: iOS release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Attach the .ipa to the release for the version in app.json
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_KEY }}
+      EXPO_PUBLIC_GITHUB_CLIENT_ID: ${{ vars.GITHUB_CLIENT_ID || 'Ov23li33ek4PVfnoVtV0' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check Supabase settings
+        run: |
+          if [ -z "$EXPO_PUBLIC_SUPABASE_URL" ] || [ -z "$EXPO_PUBLIC_SUPABASE_KEY" ]; then
+            echo "::error::Add the EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY repository secrets."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci --include=dev --no-audit --no-fund
+
+      - name: Test
+        run: npm test
+
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: CocoaPods
+        working-directory: ios
+        run: pod install
+
+      # No signing: SideStore / AltStore / TrollStore / Feather sign the app on the phone.
+      - name: Build (unsigned)
+        run: |
+          workspace="$(ls -d ios/*.xcworkspace | head -n 1)"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          echo "Building $scheme from $workspace"
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ArkStore.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive | tail -n 60
+          test -d build/ArkStore.xcarchive/Products/Applications || { echo "::error::The archive has no app."; exit 1; }
+
+      - name: Package the .ipa
+        id: ipa
+        run: |
+          version="$(node -p "require('./app.json').expo.version")"
+          name="ArkStore-${version}-ios.ipa"
+          mkdir -p Payload dist
+          cp -R build/ArkStore.xcarchive/Products/Applications/*.app Payload/
+          zip -qry "dist/$name" Payload
+          ls -la dist
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arkstore-ios
+          path: dist/*.ipa
+
+      - name: Release tag
+        id: tag
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then tag="$GITHUB_REF_NAME"
+          else tag="v$(node -p "require('./app.json').expo.version")"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # Same release as the Android and desktop workflows: whichever finishes first creates it.
+      - name: Attach to the GitHub release
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.ipa --clobber
+          else
+            gh release create "$TAG" dist/*.ipa --title "ArkStore $TAG" --notes-file "release-notes/$TAG.md" --target "$GITHUB_SHA"
+          fi

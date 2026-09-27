@@ -8,6 +8,18 @@
     "scheme": "arkstore",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#000000",
+    "ios": {
+      "bundleIdentifier": "com.arkdevs.arkstore",
+      "supportsTablet": true,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "sidestore",
+          "altstore",
+          "apple-magnifier"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
     "android": {
       "package": "com.arkdevs.arkstore",
       "adaptiveIcon": {
