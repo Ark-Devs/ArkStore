@@ -14,8 +14,8 @@ const COPY = {
     href: '/agents',
     icon: Robot,
     eyebrow: 'For AI agents',
-    title: 'MCP servers & Claude Code plugins',
-    body: 'Thousands of tools for Claude, Codex and other agents, with the command to install each one.',
+    title: 'Skills, plugins & MCP servers',
+    body: 'Tools for Claude, Codex and other agents, with the command to install each one. Also in the Agents tab.',
   },
   connect: {
     href: '/agents/connect',

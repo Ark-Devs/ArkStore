@@ -49,6 +49,8 @@ const supabaseStubs = /* sql */ `
   create type extensions.http_response as (
     status integer, content_type varchar, headers extensions.http_header[], content varchar
   );
+  create function extensions.urlencode(s text) returns text language sql immutable as
+    $$ select replace(replace(replace(s, '/', '%2F'), ':', '%3A'), ' ', '+') $$;
   create table extensions.http_mock (uri text primary key, status integer, body text, etag text);
   create table extensions.http_log (uri text, headers extensions.http_header[]);
   create function extensions.http(req extensions.http_request) returns extensions.http_response
@@ -678,6 +680,46 @@ describe('supabase schema', () => {
     const plugins = (await as(null, `select key from public.search_agent_tools(null, 'plugin')`)).rows.map((r: any) => r.key);
     assert.deepEqual(plugins, ['plugin:market/review']);
     await assert.rejects(as(null, `insert into public.agent_tools (key, kind, source, name, title) values ('x', 'mcp', 'registry', 'x', 'x')`), /permission denied/);
+  });
+
+  test('agents: SKILL.md front matter is read in all its YAML shapes', async () => {
+    const field = async (md: string, f: string) =>
+      ((await db.query<any>('select arkstore_private.frontmatter_field($1, $2) as v', [md, f])).rows[0].v as string | null);
+    const plain = '---\nname: pdf\ndescription: Read and fill PDF forms.\nlicense: MIT\n---\n# PDF\n';
+    assert.equal(await field(plain, 'name'), 'pdf');
+    assert.equal(await field(plain, 'description'), 'Read and fill PDF forms.');
+    assert.equal(await field(plain, 'missing'), null);
+    const quoted = '\r\n---\r\nname: "brand-guidelines"\r\ndescription: \'Apply the brand\'\r\n---\r\n';
+    assert.equal(await field(quoted, 'name'), 'brand-guidelines');
+    assert.equal(await field(quoted, 'description'), 'Apply the brand');
+    const folded = '---\nname: x\ndescription: >-\n  Use this skill when\n  the user asks.\nother: y\n---\nbody\ndescription: not this\n';
+    assert.equal(await field(folded, 'description'), 'Use this skill when the user asks.');
+    assert.equal(await field('# no front matter\ndescription: nope', 'description'), null);
+    assert.equal(await field('---\nname: open\n', 'name'), null, 'unterminated front matter');
+  });
+
+  test('catalog feeds: queued repos are looked up in batches and only real apps are queued', async () => {
+    await db.exec(`
+      insert into arkstore_private.import_queue (repo, source, added_at) values
+        ('carol/notes-pro', 'test', now() - interval '3 minutes'),
+        ('carol/yt-patched', 'test', now() - interval '2 minutes'),
+        ('alice/notes', 'test', now() - interval '1 minute');
+    `);
+    const repo = (full: string, extra: Record<string, unknown> = {}) => ({ ...repoJson(full), fork: false, archived: false, ...extra });
+    await mock('/search/repositories?q=repo%3Acarol%2Fnotes-pro%20repo%3Acarol%2Fyt-patched%20repo%3Aalice%2Fnotes&per_page=10', 200, {
+      items: [
+        repo('carol/notes-pro', { description: 'Fast offline notes' }),
+        repo('carol/yt-patched', { description: 'YouTube with premium unlocked' }),
+        repo('alice/notes', { description: 'Already listed' }),
+      ],
+    });
+    const added = (await db.query<any>('select arkstore_private.import_queued_repos(2) as n')).rows[0].n;
+    assert.equal(added, 1, 'only the real, new app');
+    const row = (await db.query<any>(`select status, source, category from public.apps where repo_full_name = 'carol/notes-pro'`)).rows[0];
+    assert.deepEqual(row, { status: 'hidden', source: 'curated', category: 'productivity' }, 'hidden until its release is synced');
+    const left = (await db.query<any>('select count(*)::int as n from arkstore_private.import_queue where tried_at is null')).rows[0].n;
+    assert.equal(left, 0, 'every queued repo was tried once');
+    assert.equal((await db.query<any>(`select 'Mod APK with premium unlocked' ~* arkstore_private.deny_pattern() as d`)).rows[0].d, true);
   });
 
   test('storage uploads are limited to the caller folder', async () => {

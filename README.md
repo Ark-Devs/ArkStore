@@ -18,6 +18,7 @@ App Store layouts, Nothing OS materials: dot-matrix type, true black, one red ac
 - **Signed-in devices.** Account lists every phone and computer signed in to your GitHub account, on any platform, with when each was last active. Sign any of them out from any other.
 - **Get ArkStore page** (`/download`). Recognizes the device it's opened on, puts the download that works best for it first, and lists the builds for every platform, from ArkStore's newest GitHub release.
 - **ArkStore updates itself.** The desktop app with electron-updater (from the release's `latest*.yml`), Android by installing the newest release's APK for the phone's CPU.
+- **Finds apps by itself.** Overnight the database searches GitHub for Android, Windows, macOS and Linux apps, and reads curated catalog feeds (`arkstore_private.catalog_feeds`, starting with Orion Store's list). New repos are checked against the same rules (no libraries, samples, patched or adult apps), and go live once the release sync finds an installable build.
 - **Featured apps** (`apps.featured`) get App of the Day, the top of the Apps tab, and rank first in search and their category.
 
 ## For AI agents
@@ -25,7 +26,7 @@ App Store layouts, Nothing OS materials: dot-matrix type, true black, one red ac
 ArkStore has its own MCP server, so Claude Code, Codex, Claude and other MCP clients can use it:
 
 - **Check before building.** `search_apps` finds apps by what they do ("markdown notes with sync", optionally per platform), so an agent can suggest an existing app instead of building one. `get_app` gives the listing and download links.
-- **Find MCP servers and plugins.** `search_agent_tools` searches the whole official MCP registry and Claude Code plugin marketplaces (`public.agent_tools`, refreshed overnight with app discovery); `get_install_instructions` gives the exact command for Claude Code, Codex or Claude Desktop. The app shows the same catalog and commands under **Apps → AI agents**.
+- **Find skills, plugins and MCP servers.** `search_agent_tools` searches agent skills (SKILL.md folders on GitHub, read through jsDelivr), Claude Code plugins from every known plugin marketplace, and the whole official MCP registry (`public.agent_tools`). New marketplaces and skill repos are found overnight through GitHub topic search. `get_install_instructions` gives the exact command for Claude Code, Codex or Claude Desktop (skills install with `npx skills add`). The app shows the same catalog in the **Agents** tab.
 - **Publish from the agent.** `publish_app` lists the developer's repo (same ownership and release checks as Studio). It needs a personal token from **Account → Connect an AI agent**, sent as `Authorization: Bearer ark_…`. Tokens are stored hashed and can be revoked.
 
 Connect:
