@@ -1,7 +1,7 @@
 {
   "name": "arkstore-desktop",
   "productName": "ArkStore",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "ArkStore for Windows, macOS and Linux: apps from GitHub, installed and kept up to date.",
   "homepage": "https://github.com/Ark-Devs/ArkStore",
   "author": "Ark-Devs",
