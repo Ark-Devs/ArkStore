@@ -76,10 +76,20 @@ function* centralEntries(cd: Uint8Array): Generator<Entry> {
   }
 }
 
-/** The app's Info.plist from an IPA at `url` (GitHub release downloads support Range requests). */
-export async function readIpaInfo(url: string, fetcher: Fetcher = fetch): Promise<IpaInfo> {
+/**
+ * The app's Info.plist from an IPA at `url` (GitHub release downloads support Range requests).
+ * `size` is the file's size when known; otherwise a 1-byte request finds it. Only explicit ranges
+ * are used: GitHub's release CDN answers suffix ranges ("bytes=-N") with 501.
+ */
+export async function readIpaInfo(url: string, fetcher: Fetcher = fetch, size?: number | null): Promise<IpaInfo> {
+  let total = size && size > 0 ? size : 0;
+  if (!total) {
+    const probe = await fetchRange(fetcher, url, '0-0');
+    total = probe.total;
+    if (probe.bytes.length === total) return readIpaInfo(url, async () => new Response(probe.bytes as Uint8Array<ArrayBuffer>, { status: 200 }), total);
+  }
   // End of central directory: 22 bytes plus up to 64 KB of comment.
-  const tail = await fetchRange(fetcher, url, '-65558');
+  const tail = await fetchRange(fetcher, url, `${Math.max(0, total - 65558)}-${total - 1}`);
   const t = tail.bytes;
   let eocd = -1;
   for (let i = t.length - 22; i >= 0; i--) {

@@ -85,9 +85,9 @@ function server(file: Buffer) {
   const fetcher: Fetcher = async (_url, init) => {
     stats.requests++;
     const range = init.headers.Range.replace('bytes=', '');
-    let [start, end] = range.startsWith('-')
-      ? [Math.max(0, file.length - Number(range.slice(1))), file.length - 1]
-      : range.split('-').map(Number);
+    // Like GitHub's release CDN: suffix ranges ("bytes=-N") aren't supported.
+    if (range.startsWith('-')) return new Response(null, { status: 501 });
+    let [start, end] = range.split('-').map(Number);
     end = Math.min(end, file.length - 1);
     const body = file.subarray(start, end + 1);
     stats.sent += body.length;
@@ -135,7 +135,10 @@ describe('iOS source', () => {
       privacy: { NSCameraUsageDescription: 'Scan documents' },
     });
     assert.ok(stats.sent < 70 * 1024, `downloaded ${stats.sent} bytes of ${ipa.length}`);
-    assert.ok(stats.requests <= 3);
+    assert.ok(stats.requests <= 4, 'size probe, tail, local header');
+    const known = server(ipa);
+    await readIpaInfo('https://example.com/Notes.ipa', known.fetcher, ipa.length);
+    assert.ok(known.stats.requests <= 3, 'no probe when the size is known');
   });
 
   test('ZIP64 IPAs and XML Info.plist', async () => {

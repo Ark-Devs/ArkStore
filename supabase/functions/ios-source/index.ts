@@ -45,7 +45,8 @@ Deno.serve(async (req) => {
       .limit(1000);
     if (error) throw new Error(error.message);
     const apps = (data ?? []) as IosApp[];
-    const urls = apps.map((a) => ipaOf(a)?.url).filter((u): u is string => Boolean(u));
+    const sizes = new Map(apps.map((a) => ipaOf(a)).filter(Boolean).map((f) => [f!.url, f!.size] as const));
+    const urls = [...sizes.keys()];
     const builds = await loadBuilds(urls);
 
     // Read IPAs not seen yet (and retry failures weekly), within a time budget.
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
       if (Date.now() > deadline) break;
       let row: Record<string, unknown>;
       try {
-        const info = await readIpaInfo(url);
+        const info = await readIpaInfo(url, fetch, sizes.get(url));
         row = { url, bundle_id: info.bundleId, version: info.version, build: info.build, min_os: info.minOS, app_name: info.name, privacy: info.privacy, error: null };
       } catch (e) {
         row = { url, bundle_id: null, error: String((e as Error).message ?? e).slice(0, 300) };
