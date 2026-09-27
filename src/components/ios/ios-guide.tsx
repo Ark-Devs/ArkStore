@@ -343,6 +343,7 @@ export function IosGuide() {
             'It stopped working after an iOS update or reset: the pairing file expired. Connect the iPhone to a computer and make a new one with iloader (SideStore’s docs walk through it). This is the only time you’d need a computer again.',
             'An app won’t open: it ran out. Refresh it in SideStore’s My Apps.',
             '"Maximum apps" error: you already have 3 apps. Remove one in My Apps.',
+            '"The signing certificate … was revoked" (OperationError 12) on every install: something else made a new certificate for your Apple Account (iloader, AltServer, Sideloadly, or SideStore on another device), which cancels SideStore’s. In SideStore go to Settings, Sign Out, sign in again with the same Apple Account, then Refresh All in My Apps. If SideStore itself won’t open, reinstall it with iloader. Use one signing tool per Apple Account to keep it from happening again.',
           ]}
         />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
