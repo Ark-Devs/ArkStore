@@ -3,12 +3,13 @@
 // Keep classifyAsset() in sync with arkstore_private.asset_os() / asset_arch() in the database
 // (tests/db.test.ts checks both on the same file names).
 
-export type StoreOS = 'android' | 'windows' | 'macos' | 'linux';
+export type StoreOS = 'android' | 'ios' | 'windows' | 'macos' | 'linux';
 export type Arch = 'x64' | 'arm64' | 'x86' | 'armv7' | 'universal';
 
 /** What kind of installer a file is. */
 export type AssetKind =
   | 'apk'
+  | 'ipa'
   | 'exe'
   | 'msi'
   | 'msix'
@@ -33,12 +34,13 @@ export type ReleaseFile = {
 
 export const OS_LABEL: Record<StoreOS, string> = {
   android: 'Android',
+  ios: 'iOS',
   windows: 'Windows',
   macos: 'macOS',
   linux: 'Linux',
 };
 
-export const ALL_OS: StoreOS[] = ['android', 'windows', 'macos', 'linux'];
+export const ALL_OS: StoreOS[] = ['android', 'ios', 'windows', 'macos', 'linux'];
 
 // Word-ish tokens, so "mac" matches "app-mac-arm64.zip" but not "machine.zip".
 const WIN_WORD = /(^|[^a-z0-9])(win|windows|win32|win64)([^a-z]|$)/i;
@@ -48,6 +50,8 @@ const LINUX_WORD = /(^|[^a-z0-9])linux([^a-z]|$)/i;
 export function assetKind(name: string): AssetKind | null {
   const n = name.toLowerCase();
   if (n.endsWith('.apk')) return 'apk';
+  // .tipa is an IPA packaged for TrollStore.
+  if (n.endsWith('.ipa') || n.endsWith('.tipa')) return 'ipa';
   if (n.endsWith('.exe')) return 'exe';
   if (n.endsWith('.msi')) return 'msi';
   if (/\.(msix|msixbundle|appx|appxbundle)$/.test(n)) return 'msix';
@@ -70,6 +74,8 @@ export function assetOS(name: string): StoreOS | null {
       return null;
     case 'apk':
       return 'android';
+    case 'ipa':
+      return 'ios';
     case 'exe':
     case 'msi':
     case 'msix':
@@ -130,6 +136,7 @@ export function platformsOf(files: Pick<ReleaseFile, 'os'>[] | null | undefined)
 // Lower is better. Installers that set everything up beat archives people have to unpack.
 const KIND_RANK: Record<StoreOS, Partial<Record<AssetKind, number>>> = {
   android: { apk: 0 },
+  ios: { ipa: 0 },
   windows: { exe: 0, msi: 1, msix: 2, zip: 4 },
   macos: { dmg: 0, pkg: 1, zip: 2, tar: 4 },
   linux: { appimage: 0, deb: 1, rpm: 1, flatpak: 2, tar: 4 },
@@ -147,6 +154,7 @@ function kindScore(file: ReleaseFile, linuxPackage: 'deb' | 'rpm' | null | undef
     if (/(setup|install)/i.test(file.name)) score -= 0.5;
     if (/portable/i.test(file.name)) score += 3;
   }
+  if (file.os === 'ios' && /\.tipa$/i.test(file.name)) score += 1;
   if (/debug/i.test(file.name)) score += 10;
   return score;
 }
@@ -189,6 +197,7 @@ export function bestAsset(files: ReleaseFile[] | null | undefined, target: Deskt
 
 const KIND_LABEL: Record<AssetKind, string> = {
   apk: 'APK',
+  ipa: 'IPA',
   exe: 'Installer',
   msi: 'MSI installer',
   msix: 'MSIX package',

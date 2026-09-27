@@ -78,6 +78,10 @@ const supabaseStubs = /* sql */ `
   end;
   $$;
 
+  create function extensions.http_get(uri varchar) returns extensions.http_response language sql as
+    $$ select extensions.http(row('GET', uri, null, null, null)::extensions.http_request) $$;
+  create function extensions.http_set_curlopt(opt varchar, val varchar) returns boolean language sql as $$ select true $$;
+
   create schema storage;
   create table storage.buckets (
     id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]
@@ -513,6 +517,8 @@ describe('supabase schema', () => {
       'latest.yml',
       'Notes-Setup-1.2.0.exe.blockmap',
       'notes-i686.AppImage',
+      'Notes-1.2.0.ipa',
+      'Notes-trollstore.tipa',
     ];
     for (const name of names) {
       const { rows } = await db.query<{ os: string | null; arch: string | null }>(
@@ -720,6 +726,29 @@ describe('supabase schema', () => {
     const left = (await db.query<any>('select count(*)::int as n from arkstore_private.import_queue where tried_at is null')).rows[0].n;
     assert.equal(left, 0, 'every queued repo was tried once');
     assert.equal((await db.query<any>(`select 'Mod APK with premium unlocked' ~* arkstore_private.deny_pattern() as d`)).rows[0].d, true);
+  });
+
+  test('catalog feeds: AltStore sources queue the GitHub repos that host their IPAs', async () => {
+    await db.exec(`delete from arkstore_private.catalog_feeds; delete from arkstore_private.import_queue;
+      insert into arkstore_private.catalog_feeds (url, format) values ('https://src.test/apps.json', 'altstore');`);
+    const gh = (repo: string) => `https://github.com/${repo}/releases/download/v1/App.ipa`;
+    await db.query(`insert into extensions.http_mock (uri, status, body) values ($1, 200, $2)`, [
+      'https://src.test/apps.json',
+      JSON.stringify({
+        name: 'Test source',
+        apps: [
+          { name: 'Emu', subtitle: 'A console emulator', downloadURL: gh('dave/emu-ios') },
+          { name: 'Term', versions: [{ downloadURL: gh('frank/term') }] },
+          { name: 'YouTube++', subtitle: 'Tweaked', downloadURL: gh('eve/yt') },
+          { name: 'Elsewhere', downloadURL: 'https://example.com/x.ipa' },
+          { name: 'Emu again', downloadURL: gh('dave/emu-ios') },
+        ],
+      }),
+    ]);
+    assert.equal((await db.query<any>('select arkstore_private.sync_catalog_feeds() as n')).rows[0].n, 2);
+    const queued = (await db.query<any>('select repo from arkstore_private.import_queue order by repo')).rows.map((r) => r.repo);
+    assert.deepEqual(queued, ['dave/emu-ios', 'frank/term'], 'GitHub-hosted, not tweaked, once each');
+    assert.equal((await db.query<any>('select arkstore_private.sync_catalog_feeds() as n')).rows[0].n, 0, 'read once a day');
   });
 
   test('storage uploads are limited to the caller folder', async () => {

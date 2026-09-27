@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 import { desktop } from './desktop';
 import { chooseApkForDevice, type ApkAsset } from './github/apk';
 import { rankAssets, type DesktopTarget, type ReleaseFile, type StoreOS } from './github/assets';
-import { detectVisitor } from './platform';
+import { catalogOS, detectVisitor } from './platform';
 import type { ListApp } from './types';
 
 /** CPU architectures this phone can run, best first (e.g. ["arm64-v8a", "armeabi-v7a"]). */
@@ -66,9 +66,11 @@ export function chooseBuild(
 export function buildTarget(): DesktopTarget | null {
   if (desktop) return { os: desktop.os, arch: desktop.arch, linuxPackage: desktop.linuxPackage };
   if (Platform.OS === 'android') return { os: 'android' };
+  // iPhones and iPads get the IPA (installed through SideStore and friends, see lib/ios.ts).
+  if (catalogOS() === 'ios') return { os: 'ios', arch: 'arm64' };
   if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
     const v = detectVisitor(navigator.userAgent);
-    if (v.os && v.os !== 'ios') return { os: v.os, arch: v.arch };
+    if (v.os) return { os: v.os, arch: v.arch };
   }
   return null;
 }
@@ -107,7 +109,7 @@ export function pickDownload(app: Buildable, manualName?: string, target = build
       const matched = Boolean(target.arch && file.arch === target.arch);
       return { name: file.name, url: file.url, size: file.size, os: file.os, matched, manual: Boolean(manual), file };
     }
-    if (desktop) return null;
+    if (desktop || target.os === 'ios') return null;
   }
   const build = chooseBuild(app.apk_assets, { name: app.apk_name, url: app.apk_url, size: app.apk_size }, manualName);
   if (!build) return null;

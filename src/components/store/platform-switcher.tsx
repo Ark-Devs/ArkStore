@@ -1,5 +1,6 @@
 import { AndroidLogo } from 'phosphor-react-native/src/icons/AndroidLogo';
 import { AppleLogo } from 'phosphor-react-native/src/icons/AppleLogo';
+import { DeviceMobile } from 'phosphor-react-native/src/icons/DeviceMobile';
 import { Globe } from 'phosphor-react-native/src/icons/Globe';
 import { LinuxLogo } from 'phosphor-react-native/src/icons/LinuxLogo';
 import { WindowsLogo } from 'phosphor-react-native/src/icons/WindowsLogo';
@@ -16,6 +17,7 @@ const OPTIONS: { os: BrowseOS; label: string; icon: Icon }[] = [
   { os: 'macos', label: 'macOS', icon: AppleLogo },
   { os: 'linux', label: 'Linux', icon: LinuxLogo },
   { os: 'android', label: 'Android', icon: AndroidLogo },
+  { os: 'ios', label: 'iPhone & iPad', icon: DeviceMobile },
   { os: 'all', label: 'All platforms', icon: Globe },
 ];
 

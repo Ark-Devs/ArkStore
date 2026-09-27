@@ -87,7 +87,8 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
   const installed = useInstalled((s) => s.apps[app.id]);
   const file = useInstallers((s) => s.files[app.id]);
   const task = useTasks((s) => s.tasks[app.id]);
-  const hasRelease = Boolean(app.latest_version && pickDownload(app));
+  const pick = app.latest_version ? pickDownload(app) : null;
+  const hasRelease = Boolean(pick);
   const update = installed ? hasUpdate(installed, app) : false;
   const downloaded =
     file && file.version === app.latest_version && isNeeded(installerStatus(file, installed)) ? file : null;
@@ -160,6 +161,9 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
     // Browsing another platform's apps: say which platform it's for and open its page.
     label = OS_LABEL[app.platforms[0]].toUpperCase();
     onPress = () => router.push(`/app/${app.id}`);
+  } else if (pick?.os === 'ios') {
+    // iOS can't install from here: the app's iPhone page offers SideStore, AltStore and TrollStore.
+    onPress = () => router.push(`/app/${app.id}/ios`);
   } else if (!hasRelease) {
     label = 'VIEW';
     onPress = () => Linking.openURL(repoUrl(app.repo_full_name));

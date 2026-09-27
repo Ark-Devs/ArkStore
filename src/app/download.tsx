@@ -2,103 +2,149 @@
 // (VS Code's): a column per platform with one big button for the usual download and a small
 // grid of every other format and CPU type. It recognizes the device it's opened on and
 // highlights that platform. Reads ArkStore's newest GitHub release, so it never needs editing
-// for a new version.
-import { AndroidLogo } from 'phosphor-react-native/src/icons/AndroidLogo';
-import { AppleLogo } from 'phosphor-react-native/src/icons/AppleLogo';
-import { ArrowSquareOut } from 'phosphor-react-native/src/icons/ArrowSquareOut';
-import { DownloadSimple } from 'phosphor-react-native/src/icons/DownloadSimple';
-import { LinuxLogo } from 'phosphor-react-native/src/icons/LinuxLogo';
-import { WindowsLogo } from 'phosphor-react-native/src/icons/WindowsLogo';
-import type { Icon } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
-import { Linking, Platform, ScrollView, View } from 'react-native';
+// for a new version. iPhones and iPads get a column too: ArkStore's iOS apps install through
+// SideStore, set up with the guide below the columns.
+import { AndroidLogo } from "phosphor-react-native/src/icons/AndroidLogo";
+import { AppleLogo } from "phosphor-react-native/src/icons/AppleLogo";
+import { ArrowSquareOut } from "phosphor-react-native/src/icons/ArrowSquareOut";
+import { DeviceMobile } from "phosphor-react-native/src/icons/DeviceMobile";
+import { DownloadSimple } from "phosphor-react-native/src/icons/DownloadSimple";
+import { LinuxLogo } from "phosphor-react-native/src/icons/LinuxLogo";
+import { WindowsLogo } from "phosphor-react-native/src/icons/WindowsLogo";
+import type { Icon } from "phosphor-react-native";
+import { useEffect, useRef, useState } from "react";
+import { Linking, Platform, ScrollView, View } from "react-native";
 
-import { Button } from '@/components/ui/button';
-import { DotGrid } from '@/components/ui/dots';
-import { EmptyState, Skeleton } from '@/components/ui/layout';
-import { Tap } from '@/components/ui/tap';
-import { Txt } from '@/components/ui/text';
-import { TopBar } from '@/components/ui/top-bar';
-import { desktop } from '@/lib/desktop';
-import { fileSize, relativeDate } from '@/lib/format';
-import { chooseApkForDevice } from '@/lib/github/apk';
-import { assetKind, bestAsset, type Arch, type AssetKind, type ReleaseFile, type StoreOS } from '@/lib/github/assets';
-import { currentDevice, type Visitor } from '@/lib/platform';
-import { ARKSTORE_REPO, currentArkStoreVersion, isNewerVersion, useLatestArkStore, type ArkStoreRelease } from '@/lib/self-update';
-import { friendlyError } from '@/lib/supabase';
-import { radius, space, useColors } from '@/theme';
+import { IosGuide } from "@/components/ios/ios-guide";
+import { Button } from "@/components/ui/button";
+import { DotGrid } from "@/components/ui/dots";
+import { EmptyState, Skeleton } from "@/components/ui/layout";
+import { Tap } from "@/components/ui/tap";
+import { Txt } from "@/components/ui/text";
+import { TopBar } from "@/components/ui/top-bar";
+import { desktop } from "@/lib/desktop";
+import { fileSize, relativeDate } from "@/lib/format";
+import { chooseApkForDevice } from "@/lib/github/apk";
+import {
+  assetKind,
+  bestAsset,
+  type Arch,
+  type AssetKind,
+  type ReleaseFile,
+  type StoreOS,
+} from "@/lib/github/assets";
+import { currentDevice, type Visitor } from "@/lib/platform";
+import {
+  ARKSTORE_REPO,
+  currentArkStoreVersion,
+  isNewerVersion,
+  useLatestArkStore,
+  type ArkStoreRelease,
+} from "@/lib/self-update";
+import { friendlyError } from "@/lib/supabase";
+import { radius, space, useColors } from "@/theme";
 
-type Column = { os: StoreOS; name: string; icon: Icon; needs: string; how: string };
+type Column = {
+  os: StoreOS;
+  name: string;
+  icon: Icon;
+  needs: string;
+  how: string;
+};
 
 const COLUMNS: Column[] = [
   {
-    os: 'windows',
-    name: 'Windows',
+    os: "windows",
+    name: "Windows",
     icon: WindowsLogo,
-    needs: 'Windows 10, 11',
-    how: 'If SmartScreen appears, choose More info, then Run anyway.',
+    needs: "Windows 10, 11",
+    how: "If SmartScreen appears, choose More info, then Run anyway.",
   },
   {
-    os: 'macos',
-    name: 'Mac',
+    os: "macos",
+    name: "Mac",
     icon: AppleLogo,
-    needs: 'macOS 12 or later',
-    how: 'Drag ArkStore into Applications. The first time, right-click it and choose Open.',
+    needs: "macOS 12 or later",
+    how: "Drag ArkStore into Applications. The first time, right-click it and choose Open.",
   },
   {
-    os: 'linux',
-    name: 'Linux',
+    os: "linux",
+    name: "Linux",
     icon: LinuxLogo,
-    needs: 'AppImage · .deb',
-    how: 'AppImage: make it executable and run it. .deb: open it with your software center or apt.',
+    needs: "AppImage · .deb",
+    how: "AppImage: make it executable and run it. .deb: open it with your software center or apt.",
   },
   {
-    os: 'android',
-    name: 'Android',
+    os: "android",
+    name: "Android",
     icon: AndroidLogo,
-    needs: 'Android 7 or later',
-    how: 'Open the APK and allow installs from your browser when Android asks.',
+    needs: "Android 7 or later",
+    how: "Open the APK and allow installs from your browser when Android asks.",
   },
 ];
 
 // Format rows in the small grid, in this order.
 const KIND_ROW: Partial<Record<AssetKind, string>> = {
-  exe: 'Installer',
-  msi: '.msi',
-  msix: '.msix',
-  dmg: '.dmg',
-  pkg: '.pkg',
-  zip: '.zip',
-  appimage: 'AppImage',
-  deb: '.deb',
-  rpm: '.rpm',
-  flatpak: 'Flatpak',
-  tar: '.tar.gz',
-  apk: '.apk',
+  exe: "Installer",
+  msi: ".msi",
+  msix: ".msix",
+  dmg: ".dmg",
+  pkg: ".pkg",
+  zip: ".zip",
+  appimage: "AppImage",
+  deb: ".deb",
+  rpm: ".rpm",
+  flatpak: "Flatpak",
+  tar: ".tar.gz",
+  apk: ".apk",
 };
 const KIND_ORDER = Object.keys(KIND_ROW) as AssetKind[];
-const ARCH_ORDER: (Arch | null)[] = [null, 'x64', 'arm64', 'universal', 'armv7', 'x86'];
+const ARCH_ORDER: (Arch | null)[] = [
+  null,
+  "x64",
+  "arm64",
+  "universal",
+  "armv7",
+  "x86",
+];
 
-const ARCH_CHIP: Record<Arch, string> = { x64: 'x64', arm64: 'Arm64', armv7: 'Arm32', x86: 'x86', universal: 'Universal' };
+const ARCH_CHIP: Record<Arch, string> = {
+  x64: "x64",
+  arm64: "Arm64",
+  armv7: "Arm32",
+  x86: "x86",
+  universal: "Universal",
+};
 
 function archChip(os: StoreOS, arch: Arch | null) {
-  if (os === 'macos' && arch === 'arm64') return 'Apple silicon';
-  if (os === 'macos' && arch === 'x64') return 'Intel chip';
-  return arch ? ARCH_CHIP[arch] : 'Download';
+  if (os === "macos" && arch === "arm64") return "Apple silicon";
+  if (os === "macos" && arch === "x64") return "Intel chip";
+  return arch ? ARCH_CHIP[arch] : "Download";
 }
 
-const ANDROID_ABI: Record<string, string> = { arm64: 'arm64-v8a', armv7: 'armeabi-v7a', x64: 'x86_64', x86: 'x86' };
+const ANDROID_ABI: Record<string, string> = {
+  arm64: "arm64-v8a",
+  armv7: "armeabi-v7a",
+  x64: "x86_64",
+  x86: "x86",
+};
 
 /** The big button's file: the one that fits this device, or the usual pick for other platforms. */
-function mainFile(release: ArkStoreRelease, os: StoreOS, device: Visitor): ReleaseFile | null {
+function mainFile(
+  release: ArkStoreRelease,
+  os: StoreOS,
+  device: Visitor,
+): ReleaseFile | null {
   const mine = device.os === os;
-  if (os === 'android') {
-    const apks = release.files.filter((f) => f.os === 'android');
-    const abi = mine && device.arch ? ANDROID_ABI[device.arch] : 'arm64-v8a';
-    return (chooseApkForDevice(apks, abi ? [abi] : []) as ReleaseFile | null) ?? null;
+  if (os === "android") {
+    const apks = release.files.filter((f) => f.os === "android");
+    const abi = mine && device.arch ? ANDROID_ABI[device.arch] : "arm64-v8a";
+    return (
+      (chooseApkForDevice(apks, abi ? [abi] : []) as ReleaseFile | null) ?? null
+    );
   }
   // Other people's computers: the most common machine (x64; Apple silicon for Macs).
-  const arch = mine ? device.arch : os === 'macos' ? 'arm64' : 'x64';
+  const arch = mine ? device.arch : os === "macos" ? "arm64" : "x64";
   return bestAsset(release.files, { os, arch });
 }
 
@@ -108,13 +154,28 @@ function open(file: ReleaseFile) {
 }
 
 function machineName(device: Visitor) {
-  if (device.os === 'macos') return device.arch === 'arm64' ? 'Mac with Apple silicon' : device.arch === 'x64' ? 'Mac with an Intel chip' : 'Mac';
-  if (device.os === 'windows') return device.arch === 'arm64' ? 'Windows PC (Arm)' : 'Windows PC';
-  if (device.os === 'linux') return device.arch === 'arm64' ? 'Linux computer (Arm)' : 'Linux computer';
+  if (device.os === "macos")
+    return device.arch === "arm64"
+      ? "Mac with Apple silicon"
+      : device.arch === "x64"
+        ? "Mac with an Intel chip"
+        : "Mac";
+  if (device.os === "windows")
+    return device.arch === "arm64" ? "Windows PC (Arm)" : "Windows PC";
+  if (device.os === "linux")
+    return device.arch === "arm64" ? "Linux computer (Arm)" : "Linux computer";
   return device.label;
 }
 
-function Chip({ label, file, highlight }: { label: string; file: ReleaseFile; highlight: boolean }) {
+function Chip({
+  label,
+  file,
+  highlight,
+}: {
+  label: string;
+  file: ReleaseFile;
+  highlight: boolean;
+}) {
   const c = useColors();
   return (
     <Tap
@@ -129,18 +190,30 @@ function Chip({ label, file, highlight }: { label: string; file: ReleaseFile; hi
         borderWidth: 1,
         borderColor: highlight ? c.accent : c.line,
         backgroundColor: c.surface2,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <Txt variant="mono" style={{ fontSize: 11 }} color={highlight ? 'accent' : 'text'}>
+      <Txt
+        variant="mono"
+        style={{ fontSize: 11 }}
+        color={highlight ? "accent" : "text"}
+      >
         {label}
       </Txt>
     </Tap>
   );
 }
 
-function PlatformColumn({ col, release, device }: { col: Column; release: ArkStoreRelease; device: Visitor }) {
+function PlatformColumn({
+  col,
+  release,
+  device,
+}: {
+  col: Column;
+  release: ArkStoreRelease;
+  device: Visitor;
+}) {
   const c = useColors();
   const mine = device.os === col.os;
   const main = mainFile(release, col.os, device);
@@ -162,13 +235,13 @@ function PlatformColumn({ col, release, device }: { col: Column; release: ArkSto
         borderRadius: radius.card,
         backgroundColor: c.surface,
         borderWidth: 1,
-        borderColor: mine ? c.accent : 'transparent',
+        borderColor: mine ? c.accent : "transparent",
         padding: 20,
-        alignItems: 'center',
+        alignItems: "center",
         gap: 14,
       }}
     >
-      <View style={{ height: 16, justifyContent: 'center' }}>
+      <View style={{ height: 16, justifyContent: "center" }}>
         {mine ? (
           <Txt variant="label" color="accent" style={{ fontSize: 9.5 }}>
             Your device
@@ -183,46 +256,85 @@ function PlatformColumn({ col, release, device }: { col: Column; release: ArkSto
           accessibilityRole="link"
           accessibilityLabel={`Download ArkStore for ${col.name}`}
           style={{
-            alignSelf: 'stretch',
+            alignSelf: "stretch",
             borderRadius: radius.tile,
             backgroundColor: mine ? c.accent : c.invert,
             paddingVertical: 12,
             paddingHorizontal: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: "row",
+            alignItems: "center",
             gap: 12,
           }}
         >
-          <DownloadSimple size={22} color={mine ? c.onAccent : c.onInvert} weight="bold" />
+          <DownloadSimple
+            size={22}
+            color={mine ? c.onAccent : c.onInvert}
+            weight="bold"
+          />
           <View style={{ flex: 1 }}>
-            <Txt variant="headline" color={mine ? 'onAccent' : 'onInvert'}>
+            <Txt variant="headline" color={mine ? "onAccent" : "onInvert"}>
               {col.name}
             </Txt>
-            <Txt variant="caption" color={mine ? 'onAccent' : 'onInvert'} style={{ opacity: 0.8 }}>
+            <Txt
+              variant="caption"
+              color={mine ? "onAccent" : "onInvert"}
+              style={{ opacity: 0.8 }}
+            >
               {col.needs}
             </Txt>
           </View>
-          <Txt variant="mono" color={mine ? 'onAccent' : 'onInvert'} style={{ fontSize: 11, opacity: 0.8 }}>
+          <Txt
+            variant="mono"
+            color={mine ? "onAccent" : "onInvert"}
+            style={{ fontSize: 11, opacity: 0.8 }}
+          >
             {fileSize(main.size)}
           </Txt>
         </Tap>
       ) : (
-        <View style={{ alignSelf: 'stretch', borderRadius: radius.tile, backgroundColor: c.surface2, paddingVertical: 16, alignItems: 'center' }}>
+        <View
+          style={{
+            alignSelf: "stretch",
+            borderRadius: radius.tile,
+            backgroundColor: c.surface2,
+            paddingVertical: 16,
+            alignItems: "center",
+          }}
+        >
           <Txt variant="callout" color="text3">
             Not in this release
           </Txt>
         </View>
       )}
 
-      <View style={{ alignSelf: 'stretch', gap: 8 }}>
+      <View style={{ alignSelf: "stretch", gap: 8 }}>
         {rows.map((row) => (
-          <View key={row.kind} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Txt variant="mono" color="text2" style={{ width: 72, fontSize: 11 }}>
+          <View
+            key={row.kind}
+            style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+          >
+            <Txt
+              variant="mono"
+              color="text2"
+              style={{ width: 72, fontSize: 11 }}
+            >
               {KIND_ROW[row.kind]}
             </Txt>
-            <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 6,
+              }}
+            >
               {row.files.map((f) => (
-                <Chip key={f.name} label={archChip(col.os, f.arch)} file={f} highlight={mine && main?.name === f.name} />
+                <Chip
+                  key={f.name}
+                  label={archChip(col.os, f.arch)}
+                  file={f}
+                  highlight={mine && main?.name === f.name}
+                />
               ))}
             </View>
           </View>
@@ -230,7 +342,7 @@ function PlatformColumn({ col, release, device }: { col: Column; release: ArkSto
       </View>
 
       {main ? (
-        <Txt variant="caption" color="text3" style={{ alignSelf: 'stretch' }}>
+        <Txt variant="caption" color="text3" style={{ alignSelf: "stretch" }}>
           {col.how}
         </Txt>
       ) : null}
@@ -238,10 +350,95 @@ function PlatformColumn({ col, release, device }: { col: Column; release: ArkSto
   );
 }
 
+/** iPhone and iPad: no ArkStore app to download; SideStore installs ArkStore's iOS apps. */
+function IosColumn({
+  device,
+  onGuide,
+}: {
+  device: Visitor;
+  onGuide: () => void;
+}) {
+  const c = useColors();
+  const mine = device.os === "ios";
+  return (
+    <View
+      style={{
+        flexGrow: 1,
+        flexBasis: 250,
+        minWidth: 250,
+        borderRadius: radius.card,
+        backgroundColor: c.surface,
+        borderWidth: 1,
+        borderColor: mine ? c.accent : "transparent",
+        padding: 20,
+        alignItems: "center",
+        gap: 14,
+      }}
+    >
+      <View style={{ height: 16, justifyContent: "center" }}>
+        {mine ? (
+          <Txt variant="label" color="accent" style={{ fontSize: 9.5 }}>
+            Your device
+          </Txt>
+        ) : null}
+      </View>
+      <DeviceMobile size={64} color={mine ? c.accent : c.text} weight="light" />
+      <Tap
+        onPress={onGuide}
+        accessibilityRole="button"
+        accessibilityLabel="How to install apps on iPhone and iPad"
+        style={{
+          alignSelf: "stretch",
+          borderRadius: radius.tile,
+          backgroundColor: mine ? c.accent : c.invert,
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <AppleLogo
+          size={22}
+          color={mine ? c.onAccent : c.onInvert}
+          weight="fill"
+        />
+        <View style={{ flex: 1 }}>
+          <Txt variant="headline" color={mine ? "onAccent" : "onInvert"}>
+            iPhone &amp; iPad
+          </Txt>
+          <Txt
+            variant="caption"
+            color={mine ? "onAccent" : "onInvert"}
+            style={{ opacity: 0.8 }}
+          >
+            iOS 15 or later · with SideStore
+          </Txt>
+        </View>
+      </Tap>
+      <Txt variant="callout" color="text2" style={{ alignSelf: "stretch" }}>
+        iOS only installs apps from the App Store, so ArkStore&apos;s iOS apps
+        install through SideStore with your free Apple Account. One setup with a
+        computer, then everything happens on the phone.
+      </Txt>
+      <Txt variant="caption" color="text3" style={{ alignSelf: "stretch" }}>
+        Also works with AltStore, TrollStore and Feather. The step-by-step guide
+        is below.
+      </Txt>
+    </View>
+  );
+}
+
 /** A line for people already running ArkStore: up to date, or an update is out. */
-function InAppNote({ release, device }: { release: ArkStoreRelease; device: Visitor }) {
+function InAppNote({
+  release,
+  device,
+}: {
+  release: ArkStoreRelease;
+  device: Visitor;
+}) {
   const running = currentArkStoreVersion();
-  const inApp = Boolean(desktop) || Platform.OS === 'android';
+  const inApp = Boolean(desktop) || Platform.OS === "android";
   if (!inApp || !running) return null;
   const upToDate = !isNewerVersion(release.version, running);
   return (
@@ -257,82 +454,186 @@ export default function DownloadScreen() {
   const c = useColors();
   const latest = useLatestArkStore();
   const [device, setDevice] = useState<Visitor | null>(null);
+  const scroller = useRef<ScrollView>(null);
+  const guideY = useRef(0);
+  const toGuide = () =>
+    scroller.current?.scrollTo({ y: guideY.current - 12, animated: true });
+  // On an iPhone the guide is what matters, so it comes right after the header.
+  const iPhone = device?.os === "ios";
+  const guide = (
+    <View
+      nativeID="ios"
+      onLayout={(e) => (guideY.current = e.nativeEvent.layout.y)}
+    >
+      <IosGuide />
+    </View>
+  );
 
   useEffect(() => {
-    currentDevice().then(setDevice).catch(() => setDevice({ os: null, arch: null, label: 'this device' }));
+    currentDevice()
+      .then(setDevice)
+      .catch(() => setDevice({ os: null, arch: null, label: "this device" }));
   }, []);
 
   const release = latest.data;
   // On the website there's nowhere to go back to; in the apps this is a screen like any other.
-  const standalone = Platform.OS === 'web' && !desktop;
+  const standalone = Platform.OS === "web" && !desktop;
   // Your platform first on narrow screens, where the columns stack.
-  const columns = device?.os ? [...COLUMNS].sort((a, b) => Number(b.os === device.os) - Number(a.os === device.os)) : COLUMNS;
+  const columns = device?.os
+    ? [...COLUMNS].sort(
+        (a, b) => Number(b.os === device.os) - Number(a.os === device.os),
+      )
+    : COLUMNS;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       {standalone ? null : <TopBar close title="Get ArkStore" />}
-      <ScrollView contentContainerStyle={{ paddingBottom: 60, paddingTop: standalone ? 40 : 8 }}>
-        <View style={{ width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: space.gutter, gap: 28 }}>
-          <View style={{ borderRadius: radius.card, backgroundColor: c.surface, overflow: 'hidden' }}>
+      <ScrollView
+        ref={scroller}
+        contentContainerStyle={{
+          paddingBottom: 60,
+          paddingTop: standalone ? 40 : 8,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 1180,
+            alignSelf: "center",
+            paddingHorizontal: space.gutter,
+            gap: 28,
+          }}
+        >
+          <View
+            style={{
+              borderRadius: radius.card,
+              backgroundColor: c.surface,
+              overflow: "hidden",
+            }}
+          >
             <DotGrid gap={12} size={1.1} />
-            <View style={{ paddingVertical: 36, paddingHorizontal: 20, alignItems: 'center', gap: 10 }}>
+            <View
+              style={{
+                paddingVertical: 36,
+                paddingHorizontal: 20,
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
               <Txt variant="hero" align="center" accessibilityRole="header">
                 Download ArkStore
               </Txt>
-              <Txt variant="body" color="text2" align="center" style={{ maxWidth: 560 }}>
-                Apps that live on GitHub, installed and kept up to date. Free and open source, on Windows, macOS, Linux and
-                Android.
+              <Txt
+                variant="body"
+                color="text2"
+                align="center"
+                style={{ maxWidth: 560 }}
+              >
+                Apps that live on GitHub, installed and kept up to date. Free
+                and open source, on Windows, macOS, Linux and Android, and
+                iPhone apps through SideStore.
               </Txt>
               {release ? (
                 <Txt variant="label" color="text3">
                   {`Version ${release.version}  ·  ${relativeDate(release.publishedAt).toLowerCase()}`}
                 </Txt>
               ) : null}
-              {device?.os === 'ios' ? (
-                <Txt variant="callout" color="text2" align="center" style={{ marginTop: 6 }}>
-                  Not on iPhone or iPad yet: iOS only installs apps from the App Store.
+              {device?.os === "ios" ? (
+                <Txt
+                  variant="callout"
+                  color="text2"
+                  align="center"
+                  style={{ marginTop: 6 }}
+                >
+                  On iPhone or iPad? Apps install through SideStore: see the
+                  guide below.
                 </Txt>
               ) : null}
             </View>
           </View>
 
+          {iPhone ? guide : null}
+
           {latest.isLoading || !device ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-              {COLUMNS.map((col) => (
-                <Skeleton key={col.os} style={{ flexGrow: 1, flexBasis: 250, height: 320, borderRadius: radius.card }} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+              {[...COLUMNS, { os: "ios" }].map((col) => (
+                <Skeleton
+                  key={col.os}
+                  style={{
+                    flexGrow: 1,
+                    flexBasis: 250,
+                    height: 320,
+                    borderRadius: radius.card,
+                  }}
+                />
               ))}
             </View>
           ) : latest.error || !release ? (
-            <EmptyState
-              glyph="?"
-              title="Couldn't load the downloads"
-              body={latest.error ? friendlyError(latest.error) : `${ARKSTORE_REPO} has no releases yet.`}
-              action={<Button label="Try again" variant="secondary" onPress={() => latest.refetch()} />}
-            />
+            iPhone ? null : (
+              <EmptyState
+                glyph="?"
+                title="Couldn't load the downloads"
+                body={
+                  latest.error
+                    ? friendlyError(latest.error)
+                    : `${ARKSTORE_REPO} has no releases yet.`
+                }
+                action={
+                  <Button
+                    label="Try again"
+                    variant="secondary"
+                    onPress={() => latest.refetch()}
+                  />
+                }
+              />
+            )
           ) : (
             <>
               <InAppNote release={release} device={device} />
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+              {iPhone ? (
+                <Txt variant="title" style={{ paddingHorizontal: 4 }}>
+                  ArkStore on your other devices
+                </Txt>
+              ) : null}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
                 {columns.map((col) => (
-                  <PlatformColumn key={col.os} col={col} release={release} device={device} />
+                  <PlatformColumn
+                    key={col.os}
+                    col={col}
+                    release={release}
+                    device={device}
+                  />
                 ))}
+                {iPhone ? null : (
+                  <IosColumn device={device} onGuide={toGuide} />
+                )}
               </View>
-              <View style={{ alignItems: 'center', gap: 12 }}>
-                <Txt variant="callout" color="text2" align="center" style={{ maxWidth: 640 }}>
-                  ArkStore keeps itself up to date. Sign in with GitHub on each device and they all show up under Account,
-                  where you can sign any of them out.
+              <View style={{ alignItems: "center", gap: 12 }}>
+                <Txt
+                  variant="callout"
+                  color="text2"
+                  align="center"
+                  style={{ maxWidth: 640 }}
+                >
+                  ArkStore keeps itself up to date. Sign in with GitHub on each
+                  device and they all show up under Account, where you can sign
+                  any of them out.
                 </Txt>
                 <Tap
                   onPress={() => Linking.openURL(release.url)}
                   accessibilityRole="link"
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
                 >
-                  <Txt variant="label">Release notes and checksums on GitHub</Txt>
+                  <Txt variant="label">
+                    Release notes and checksums on GitHub
+                  </Txt>
                   <ArrowSquareOut size={14} color={c.text} />
                 </Tap>
               </View>
             </>
           )}
+
+          {iPhone ? null : guide}
         </View>
       </ScrollView>
     </View>
