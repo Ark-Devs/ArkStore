@@ -47,11 +47,13 @@ const WIN_WORD = /(^|[^a-z0-9])(win|windows|win32|win64)([^a-z]|$)/i;
 const MAC_WORD = /(^|[^a-z0-9])(mac|macos|osx|darwin|apple)([^a-z]|$)/i;
 const LINUX_WORD = /(^|[^a-z0-9])linux([^a-z]|$)/i;
 
+const APPLE_TV = /(tvos|appletv|(^|[^a-z0-9])tv([^a-z0-9]|$))/i;
+
 export function assetKind(name: string): AssetKind | null {
   const n = name.toLowerCase();
   if (n.endsWith('.apk')) return 'apk';
-  // .tipa is an IPA packaged for TrollStore.
-  if (n.endsWith('.ipa') || n.endsWith('.tipa')) return 'ipa';
+  // .tipa is an IPA packaged for TrollStore. Apple TV builds (tvOS) don't install on an iPhone.
+  if (n.endsWith('.ipa') || n.endsWith('.tipa')) return APPLE_TV.test(n) ? null : 'ipa';
   if (n.endsWith('.exe')) return 'exe';
   if (n.endsWith('.msi')) return 'msi';
   if (/\.(msix|msixbundle|appx|appxbundle)$/.test(n)) return 'msix';

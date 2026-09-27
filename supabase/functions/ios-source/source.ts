@@ -48,10 +48,25 @@ const CATEGORY: Record<string, string> = {
   maps: 'utilities',
 };
 
+const APPLE_TV = /(tvos|appletv|(^|[^a-z0-9])tv([^a-z0-9]|$))/i;
+
+/** An app's iPhone builds: not Apple TV ones (listed before this was filtered at sync). */
+const iphoneBuilds = (app: Pick<IosApp, 'assets'>) => (app.assets ?? []).filter((a) => a.os === 'ios' && !APPLE_TV.test(a.name));
+
 /** The IPA ArkStore lists for an app: a plain .ipa before a TrollStore .tipa. */
 export function ipaOf(app: Pick<IosApp, 'assets'>) {
-  const ipas = (app.assets ?? []).filter((a) => a.os === 'ios');
+  const ipas = iphoneBuilds(app);
   return ipas.find((a) => /\.ipa$/i.test(a.name)) ?? ipas[0] ?? null;
+}
+
+/**
+ * The IPA SideStore / AltStore can install, or null: they sign with a normal developer
+ * certificate, so TrollStore-only apps (only a .tipa, or the Troll* tools that need TrollStore's
+ * permissions) fail to install there with a signing error. Those stay in TrollStore's list.
+ */
+export function sideloadIpa(app: Pick<IosApp, 'assets' | 'name'> & { repo_full_name?: string }) {
+  if (/^troll/i.test(app.name) || /\/troll/i.test(app.repo_full_name ?? '')) return null;
+  return iphoneBuilds(app).find((a) => /\.ipa$/i.test(a.name)) ?? null;
 }
 
 const clean = (s: string | null | undefined, n: number) => (s ?? '').replace(/\r/g, '').trim().slice(0, n);
@@ -67,8 +82,8 @@ export function displayName(app: Pick<IosApp, 'name' | 'developer_login'> & { re
 
 export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourceURL: string, website: string) {
   const listed = apps
-    .map((app) => ({ app, ipa: ipaOf(app) }))
-    .filter((x): x is { app: IosApp; ipa: NonNullable<ReturnType<typeof ipaOf>> } => Boolean(x.ipa && builds.get(x.ipa.url)?.bundle_id))
+    .map((app) => ({ app, ipa: sideloadIpa(app) }))
+    .filter((x): x is { app: IosApp; ipa: NonNullable<ReturnType<typeof sideloadIpa>> } => Boolean(x.ipa && builds.get(x.ipa.url)?.bundle_id))
     // Clients refuse a source that lists a bundle ID twice (forks): the first (most starred) wins.
     .filter(({ ipa }, i, all) => all.findIndex((x) => builds.get(x.ipa.url)!.bundle_id === builds.get(ipa.url)!.bundle_id) === i)
     .map(({ app, ipa }) => {
@@ -120,7 +135,7 @@ export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourc
     website,
     sourceURL,
     tintColor: TINT,
-    featuredApps: [...new Set(apps.filter((a) => a.featured).map((a) => builds.get(ipaOf(a)?.url ?? '')?.bundle_id).filter(Boolean))],
+    featuredApps: [...new Set(apps.filter((a) => a.featured).map((a) => builds.get(sideloadIpa(a)?.url ?? '')?.bundle_id).filter(Boolean))],
     apps: listed,
     news: [],
   };
@@ -142,9 +157,7 @@ export function buildShortcutFeed(
   const feed: Record<string, unknown> = Object.fromEntries(extras);
   const names: string[] = [];
   for (const app of apps) {
-    const ipa = via === 'trollstore'
-      ? (app.assets ?? []).find((a) => a.os === 'ios' && /\.tipa$/i.test(a.name)) ?? ipaOf(app)
-      : ipaOf(app);
+    const ipa = via === 'trollstore' ? iphoneBuilds(app).find((a) => /\.tipa$/i.test(a.name)) ?? ipaOf(app) : sideloadIpa(app);
     if (!ipa) continue;
     const main = ipaOf(app);
     let name = displayName(app, main ? builds.get(main.url) : null);

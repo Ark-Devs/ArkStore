@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 
 import { parsePlist, readIpaInfo, type Fetcher } from '../supabase/functions/ios-source/ipa';
-import { buildShortcutFeed, buildSource, type IosApp, type IosBuild } from '../supabase/functions/ios-source/source';
+import { buildShortcutFeed, buildSource, sideloadIpa, type IosApp, type IosBuild } from '../supabase/functions/ios-source/source';
 import { assetOS, bestAsset, classifyAsset } from '../src/lib/github/assets';
 import { provisionExpiry, reminderTimes } from '../src/lib/provision';
 
@@ -220,5 +220,16 @@ describe('iOS source', () => {
     const at = reminderTimes(expiry, new Date('2026-09-27T12:00:00Z'));
     assert.deepEqual(at.map((r) => r.at.toISOString()), ['2026-10-01T10:00:00.000Z', '2026-10-03T10:00:00.000Z']);
     assert.equal(reminderTimes(expiry, new Date('2026-10-02T00:00:00Z')).length, 1, 'past reminders are skipped');
+  });
+
+  test('SideStore gets an installable iPhone build: no Apple TV builds, no TrollStore-only apps', () => {
+    assert.equal(assetOS('streamyfin-ios-tv.ipa'), null, 'Apple TV build');
+    assert.equal(assetOS('Provenance-3.3.0-tvOS.ipa'), null);
+    assert.equal(assetOS('streamyfin-ios.ipa'), 'ios');
+    const f = (name: string) => ({ name, url: name, size: 1, os: 'ios' });
+    assert.equal(sideloadIpa({ name: 'Streamyfin', assets: [f('streamyfin-ios-tv.ipa'), f('streamyfin-ios.ipa')] })?.name, 'streamyfin-ios.ipa');
+    assert.equal(sideloadIpa({ name: 'TrollSpeed', assets: [f('TrollSpeed_2.0.tipa')] }), null, '.tipa only');
+    assert.equal(sideloadIpa({ name: 'TrollApps', assets: [f('store.ipa')] }), null, 'needs TrollStore');
+    assert.equal(sideloadIpa({ name: 'DolphiniOS', assets: [f('Non-Jailbroken.ipa'), f('TrollStore.tipa')] })?.name, 'Non-Jailbroken.ipa');
   });
 });
