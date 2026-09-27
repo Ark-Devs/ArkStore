@@ -30,7 +30,7 @@ function buildName(asset: ApkAsset) {
  */
 export function BuildPicker({ app }: { app: ListApp }) {
   const target = buildTarget();
-  if (target && target.os !== 'android' && desktopChoices(app, target).length > 0) return <DesktopBuildPicker app={app} />;
+  if (target && target.os !== 'android' && target.os !== 'ios' && desktopChoices(app, target).length > 0) return <DesktopBuildPicker app={app} />;
   // The desktop app never offers APKs; browsers fall back to the APK (for a phone).
   if (desktop) return null;
   return <ApkBuildPicker app={app} />;

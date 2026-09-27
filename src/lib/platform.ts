@@ -1,19 +1,27 @@
-// Which store this is: Android on phones, Windows / macOS / Linux in the desktop app.
-// In a browser nothing is filtered; builds are picked for the visitor's computer or phone.
+// Which store this is: Android on phones, Windows / macOS / Linux in the desktop app, iOS apps
+// in an iPhone or iPad browser. In other browsers nothing is filtered; builds are picked for the
+// visitor's computer or phone.
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
 import { desktop } from './desktop';
 import type { Arch, StoreOS } from './github/assets';
 
-/** The platform whose apps the catalog shows, or null to show everything (browsers, iOS). */
+/** The platform whose apps the catalog shows, or null to show everything (desktop browsers). */
 export function catalogOS(): StoreOS | null {
   if (desktop) return desktop.os;
   if (Platform.OS === 'android') return 'android';
+  if (Platform.OS === 'ios') return 'ios';
+  if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
+    const v = detectVisitor(navigator.userAgent);
+    if (v.os === 'android' || v.os === 'ios') return v.os;
+    // iPadOS Safari says "Macintosh"; only the touch screen gives it away.
+    if (v.os === 'macos' && ((navigator as { maxTouchPoints?: number }).maxTouchPoints ?? 0) > 1) return 'ios';
+  }
   return null;
 }
 
-export type Visitor = { os: StoreOS | 'ios' | null; arch: Arch | null; label: string };
+export type Visitor = { os: StoreOS | null; arch: Arch | null; label: string };
 
 /** Best guess at the browser's device, from the user agent. */
 export function detectVisitor(ua: string, platformHint = ''): Visitor {
@@ -61,6 +69,7 @@ export async function currentDevice(): Promise<Visitor> {
       // Keep the guess.
     }
   }
+  if (guess.os === 'macos' && catalogOS() === 'ios') return { os: 'ios', arch: 'arm64', label: 'iPhone or iPad' };
   if (guess.os === 'macos' && !guess.arch) {
     // Apple silicon Macs expose an Apple GPU through WebGL; Intel Macs don't.
     guess.arch = appleGpu() ? 'arm64' : null;
@@ -69,7 +78,7 @@ export async function currentDevice(): Promise<Visitor> {
 }
 
 function deviceLabel(os: StoreOS) {
-  return os === 'macos' ? 'Mac' : os === 'windows' ? 'Windows PC' : os === 'linux' ? 'Linux computer' : 'Android';
+  return os === 'macos' ? 'Mac' : os === 'windows' ? 'Windows PC' : os === 'linux' ? 'Linux computer' : os === 'ios' ? 'iPhone or iPad' : 'Android';
 }
 
 function appleGpu(): boolean {

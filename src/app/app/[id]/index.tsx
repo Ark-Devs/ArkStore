@@ -245,6 +245,9 @@ export default function AppScreen() {
           <InfoRow label="Category" value={category?.name} onPress={() => router.push(`/category/${app.category}`)} />
           <InfoRow label="Size" value={fileSize(build?.size)} />
           <InfoRow label="Available for" value={available} />
+          {app.platforms?.includes('ios') ? (
+            <InfoRow label="iPhone & iPad" value="Install on iPhone" onPress={() => router.push(`/app/${app.id}/ios`)} />
+          ) : null}
           <InfoRow label="Compatibility" value={androidVersion(app.min_sdk)} />
           <InfoRow label="Package" value={app.package_name} />
           <InfoRow label="License" value={app.license} />

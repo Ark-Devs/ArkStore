@@ -513,6 +513,8 @@ describe('supabase schema', () => {
       'latest.yml',
       'Notes-Setup-1.2.0.exe.blockmap',
       'notes-i686.AppImage',
+      'Notes-1.2.0.ipa',
+      'Notes-trollstore.tipa',
     ];
     for (const name of names) {
       const { rows } = await db.query<{ os: string | null; arch: string | null }>(

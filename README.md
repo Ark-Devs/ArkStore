@@ -1,6 +1,6 @@
 # ArkStore
 
-An app store for apps that live on GitHub, on Android, Windows, macOS and Linux. Developers link a repo, ArkStore recognizes the app (name, icon, screenshots, description, package, and the installers in its releases) and publishes it. Anyone can install it, and every new GitHub release reaches users as an update, Play Store style.
+An app store for apps that live on GitHub, on Android, Windows, macOS, Linux and iPhone. Developers link a repo, ArkStore recognizes the app (name, icon, screenshots, description, package, and the installers in its releases) and publishes it. Anyone can install it, and every new GitHub release reaches users as an update, Play Store style.
 
 App Store layouts, Nothing OS materials: dot-matrix type, true black, one red accent.
 
@@ -18,7 +18,8 @@ App Store layouts, Nothing OS materials: dot-matrix type, true black, one red ac
 - **Signed-in devices.** Account lists every phone and computer signed in to your GitHub account, on any platform, with when each was last active. Sign any of them out from any other.
 - **Get ArkStore page** (`/download`). Recognizes the device it's opened on, puts the download that works best for it first, and lists the builds for every platform, from ArkStore's newest GitHub release.
 - **ArkStore updates itself.** The desktop app with electron-updater (from the release's `latest*.yml`), Android by installing the newest release's APK for the phone's CPU.
-- **Finds apps by itself.** Overnight the database searches GitHub for Android, Windows, macOS and Linux apps, and reads curated catalog feeds (`arkstore_private.catalog_feeds`, starting with Orion Store's list). New repos are checked against the same rules (no libraries, samples, patched or adult apps), and go live once the release sync finds an installable build.
+- **Finds apps by itself.** Overnight the database searches GitHub for Android, Windows, macOS, Linux and iOS apps, and reads curated catalog feeds (`arkstore_private.catalog_feeds`, starting with Orion Store's list). New repos are checked against the same rules (no libraries, samples, patched or adult apps), and go live once the release sync finds an installable build.
+- **iPhone and iPad.** iOS can't install apps from another app, so ArkStore publishes its iOS apps (releases with an `.ipa` / `.tipa`) as an AltStore-format source (`supabase/functions/ios-source`) that SideStore, AltStore and Feather read. The function reads each IPA's `Info.plist` with a few HTTP Range requests (bundle ID, version, minimum iOS) without downloading the app, and caches it in `ios_builds`. App pages on an iPhone offer Add to SideStore, Install with TrollStore, or the IPA; `/download` has the step-by-step SideStore setup guide.
 - **Featured apps** (`apps.featured`) get App of the Day, the top of the Apps tab, and rank first in search and their category.
 
 ## For AI agents

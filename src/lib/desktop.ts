@@ -2,7 +2,7 @@
 // `window.arkDesktop`. Undefined in browsers and on phones. Keep in sync with desktop/preload.cjs.
 import type { Arch, StoreOS } from './github/assets';
 
-export type DesktopOS = Exclude<StoreOS, 'android'>;
+export type DesktopOS = Exclude<StoreOS, 'android' | 'ios'>;
 
 export type DesktopDownload = { path: string; size: number };
 
