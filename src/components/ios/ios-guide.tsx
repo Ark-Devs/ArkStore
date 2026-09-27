@@ -13,8 +13,8 @@ import { DotRule } from '@/components/ui/dots';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { desktop } from '@/lib/desktop';
-import { addSourceLink, IOS_LINKS, IOS_SOURCE_URL, openInApp } from '@/lib/ios';
-import { catalogOS } from '@/lib/platform';
+import { addSourceLink, IOS_LINKS, IOS_SETUP, IOS_SOURCE_URL, openInApp } from '@/lib/ios';
+import { catalogOS, detectVisitor } from '@/lib/platform';
 import { radius, useColors } from '@/theme';
 
 export function openLink(url: string) {
@@ -134,6 +134,43 @@ export function AddSourceButtons() {
   );
 }
 
+/** The computer part as one script: Apple's drivers (Windows), usbmuxd (Linux) and iloader. */
+function EasySetup() {
+  const c = useColors();
+  const v = typeof navigator !== 'undefined' ? detectVisitor(navigator.userAgent).os : null;
+  const windows = (
+    <View key="w" style={{ gap: 8 }}>
+      <Txt variant="headline">Windows</Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <Button label="Download ArkStore-iPhone-Setup.bat" variant="accent" size="sm" onPress={() => openLink(IOS_SETUP.windowsBat)} />
+        <Txt variant="caption" color="text3">
+          Double-click it. If Windows asks, choose More info, then Run anyway.
+        </Txt>
+      </View>
+      <CodeBlock code={IOS_SETUP.windowsCommand} label="Or paste this into PowerShell" />
+    </View>
+  );
+  const unix = (
+    <View key="u" style={{ gap: 8 }}>
+      <Txt variant="headline">Mac, Linux, Chromebook</Txt>
+      <CodeBlock code={IOS_SETUP.unixCommand} label="Paste this into Terminal (Chromebook: the Linux terminal)" />
+    </View>
+  );
+  return (
+    <View style={{ gap: 14, padding: 16, borderRadius: radius.tile, borderWidth: 1, borderColor: c.accent }}>
+      <View style={{ gap: 4 }}>
+        <Txt variant="headline">Let a script do the computer part</Txt>
+        <P>
+          It installs everything the computer needs (Apple&apos;s iPhone drivers on Windows, the USB service on Linux, and iloader)
+          and opens iloader. Then you only plug in the iPhone, sign in and choose Install SideStore: steps 3 and 4 below.
+        </P>
+      </View>
+      {v === 'windows' ? [windows, unix] : [unix, windows]}
+      <ExtLink label="Read the scripts first" url="https://github.com/Ark-Devs/ArkStore/tree/main/tools/ios-setup" />
+    </View>
+  );
+}
+
 export function IosGuide() {
   const c = useColors();
   return (
@@ -162,13 +199,14 @@ export function IosGuide() {
       </Section>
 
       <Section title="2. Set up SideStore" subtitle="The only part that needs a computer" open>
+        <EasySetup />
         <Step n={1} title="On your iPhone: install LocalDevVPN">
           <P>
             Get LocalDevVPN from the App Store (search for it by name). SideStore uses it to talk to your iPhone without a
             computer. It stays on the phone, and it needs to be connected whenever SideStore installs or refreshes an app.
           </P>
         </Step>
-        <Step n={2} title="On your computer: install iloader">
+        <Step n={2} title="On your computer: install iloader (the script above does this)">
           <Bullets
             items={[
               'Windows: install iTunes from Apple’s website (not the Microsoft Store version) or the Apple Devices app, then the iloader installer.',
@@ -233,6 +271,27 @@ export function IosGuide() {
             'A paid Apple Developer account removes both limits and makes signatures last a year.',
           ]}
         />
+      </Section>
+
+      <Section title="Refresh automatically with Shortcuts" subtitle="A daily automation, so you never have to remember">
+        <P>
+          SideStore adds a Refresh All Apps action to the Shortcuts app. Set it to run every night and your apps stay signed
+          without opening SideStore. It takes a minute, once.
+        </P>
+        <Step n={1} title="New automation">
+          <P>Open Shortcuts, go to Automation and tap +. Choose Time of Day, pick a time the iPhone is usually on Wi-Fi (say 3:00 AM), Daily, and Run Immediately.</P>
+        </Step>
+        <Step n={2} title="Connect LocalDevVPN first">
+          <P>Add the Set VPN action, choose Connect, and pick LocalDevVPN. SideStore can only refresh while it&apos;s connected.</P>
+        </Step>
+        <Step n={3} title="Then refresh">
+          <P>Add SideStore&apos;s Refresh All Apps action below it, and tap Done.</P>
+        </Step>
+        <Note>
+          On some iOS 18 versions the automation refreshes your apps but SideStore itself doesn&apos;t finish. Open SideStore and
+          refresh it by hand about once a week to be safe.
+        </Note>
+        <ExtLink label="SideStore issue about this" url={IOS_LINKS.refreshShortcutIssue} />
       </Section>
 
       <Section title="5. If something goes wrong" subtitle="The usual fixes">

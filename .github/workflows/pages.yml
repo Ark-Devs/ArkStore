@@ -47,6 +47,9 @@ jobs:
           mkdir -p site/download
           cp -r dist-web/_expo dist-web/favicon.ico site/
           [ -d dist-web/assets ] && cp -r dist-web/assets site/
+          # iPhone setup scripts for computers, linked from the page's iPhone guide.
+          mkdir -p site/ios-setup
+          cp tools/ios-setup/* site/ios-setup/
           cp dist-web/index.html site/download/index.html
           redirect() {
             printf '<!doctype html>\n<meta charset="utf-8">\n<title>Get ArkStore</title>\n<meta http-equiv="refresh" content="0; url=%s">\n<link rel="canonical" href="%s">\n<a href="%s">Get ArkStore</a>\n' "$1" "$1" "$1"
