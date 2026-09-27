@@ -104,8 +104,8 @@ export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourc
         downloadURL: ipa.url,
         size: ipa.size,
         appPermissions: { entitlements: [], privacy: b.privacy ?? {} },
-        // Where ArkStore lists it.
-        marketplaceID: app.id,
+        // Not marketplaceID: in AltStore's format it marks an app as notarized for the EU app
+        // marketplace, and SideStore then refuses the whole source.
         githubRepository: `https://github.com/${app.repo_full_name}`,
       };
     });
@@ -130,14 +130,16 @@ export function buildSource(apps: IosApp[], builds: Map<string, IosBuild>, sourc
  * The feed the ArkStore shortcut reads (ios-source?format=shortcut): `names` for Choose from List,
  * and each name as a key whose value is the link to open, so the shortcut needs only Get
  * Dictionary Value. Every published iOS app with an IPA is in it (installing from a link doesn't
- * need the IPA to have been read). `via` picks SideStore's or TrollStore's install link.
+ * need the IPA to have been read). `via` picks SideStore's or TrollStore's install link, and
+ * `extras` are menu entries listed before the apps.
  */
 export function buildShortcutFeed(
   apps: (Pick<IosApp, 'name' | 'developer_login' | 'assets'> & { repo_full_name?: string })[],
   via: 'sidestore' | 'trollstore',
   builds: Map<string, Pick<IosBuild, 'app_name'>> = new Map(),
+  extras: [label: string, url: string][] = [],
 ) {
-  const feed: Record<string, unknown> = {};
+  const feed: Record<string, unknown> = Object.fromEntries(extras);
   const names: string[] = [];
   for (const app of apps) {
     const ipa = via === 'trollstore'
@@ -153,5 +155,6 @@ export function buildShortcutFeed(
     names.push(name);
   }
   names.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
-  return { names, ...feed };
+  // Menu entries (add the source, the setup guide) come first, then the apps A to Z.
+  return { names: [...extras.map(([label]) => label), ...names], ...feed };
 }
