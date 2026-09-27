@@ -26,6 +26,8 @@ import { desktop, onDesktopUrl } from '@/lib/desktop';
 import { isPackageInstalled, reconcileDesktopApps, reconcileInstallers } from '@/lib/install';
 import { openExternal, scheduleExpiryReminders } from '@/lib/ios-expiry';
 import { useInstalled } from '@/lib/stores/installed';
+import { forgetPhoneChecks } from '@/lib/stores/on-phone';
+import { supabase } from '@/lib/supabase';
 import { checkForUpdates, setupUpdateChecks } from '@/lib/updates';
 import { useColors, useScheme } from '@/theme';
 
@@ -34,6 +36,26 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, retry: 1 } },
 });
+
+/**
+ * Forgets apps that are no longer on the phone. Apps recorded without a package name (the
+ * catalog didn't know it yet at install time) get it from the catalog first, so they can be
+ * checked too.
+ */
+async function forgetUninstalled() {
+  const { apps, forget, markInstalled } = useInstalled.getState();
+  const unnamed = Object.values(apps).filter((a) => !a.packageName).map((a) => a.appId);
+  if (unnamed.length > 0) {
+    const { data } = await supabase.from('apps').select('id, package_name').in('id', unnamed);
+    for (const row of data ?? []) {
+      const entry = useInstalled.getState().apps[row.id];
+      if (entry && row.package_name) markInstalled({ ...entry, packageName: row.package_name });
+    }
+  }
+  for (const app of Object.values(useInstalled.getState().apps)) {
+    if (app.packageName && !(await isPackageInstalled(app.packageName))) forget(app.appId);
+  }
+}
 
 /** Update checks on launch and whenever the app comes back to the foreground. */
 function UpdateWatcher() {
@@ -44,13 +66,14 @@ function UpdateWatcher() {
     // installed app, so run them at most every 10 minutes.
     let lastPhoneCheck = 0;
     const refresh = async () => {
+      if (Platform.OS === 'android') {
+        // Anything may have been installed or uninstalled meanwhile: buttons ask Android again.
+        forgetPhoneChecks();
+        // Forget apps that were uninstalled outside ArkStore (one quick question per app).
+        await forgetUninstalled().catch(() => undefined);
+      }
       if (Platform.OS === 'android' && Date.now() - lastPhoneCheck > 10 * 60 * 1000) {
         lastPhoneCheck = Date.now();
-        // Forget apps that were uninstalled outside ArkStore.
-        const { apps, forget } = useInstalled.getState();
-        for (const app of Object.values(apps)) {
-          if (app.packageName && !(await isPackageInstalled(app.packageName))) forget(app.appId);
-        }
         // Notice installs that finished outside the app and tidy installer files.
         await reconcileInstallers().catch(() => undefined);
       }

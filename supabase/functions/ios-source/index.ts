@@ -3,8 +3,11 @@
 // Public and read-only (deployed with verify_jwt off). It reads IPAs it hasn't seen yet
 // (a few per request; ?refresh=N reads up to 25, which pg_cron does every 30 minutes) and caches
 // what it learns in public.ios_builds. ?format=shortcut is the list the ArkStore shortcut reads.
+// ?task=apk-packages is an Android job that lives here because it shares the ZIP reader: it reads
+// the package name from the APKs of listings that don't have one yet (see apkPackages below).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { readApkPackage } from './apk.ts';
 import { readIpaInfo } from './ipa.ts';
 import { buildShortcutFeed, buildSource, ipaOf, type IosApp, type IosBuild } from './source.ts';
 
@@ -31,6 +34,51 @@ async function loadBuilds(urls: string[]) {
   return builds;
 }
 
+/**
+ * Android: fills in package_name for listings that lack it (curated imports), read from each
+ * APK's AndroidManifest.xml. The Android app needs it to see whether an app is on the phone
+ * (installed through ArkStore or not) and to notice uninstalls. Results, including failures, are
+ * kept in public.apk_packages so a bad APK is retried weekly, not every run.
+ */
+async function apkPackages(wanted: number) {
+  const { data, error } = await supabase
+    .from('apps')
+    .select('id, apk_url, apk_size')
+    .eq('status', 'published')
+    .is('package_name', null)
+    .not('apk_url', 'is', null)
+    .order('stars', { ascending: false })
+    .limit(300);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { id: string; apk_url: string; apk_size: number | null }[];
+  const { data: seen } = await supabase.from('apk_packages').select('url, package_name, checked_at').in('url', rows.map((r) => r.apk_url));
+  const known = new Map((seen ?? []).map((r) => [r.url as string, r]));
+  const deadline = Date.now() + 100_000;
+  let read = 0;
+  let found = 0;
+  for (const row of rows) {
+    if (read >= wanted || Date.now() > deadline) break;
+    const prev = known.get(row.apk_url);
+    let pkg: string | null = prev?.package_name ?? null;
+    if (!pkg) {
+      if (prev && Date.now() - Date.parse(prev.checked_at) < RETRY_FAILED_AFTER) continue;
+      read++;
+      let err: string | null = null;
+      try {
+        pkg = await readApkPackage(row.apk_url, fetch, row.apk_size);
+      } catch (e) {
+        err = String((e as Error).message ?? e).slice(0, 300);
+      }
+      await supabase.from('apk_packages').upsert({ url: row.apk_url, package_name: pkg, error: err, checked_at: new Date().toISOString() });
+    }
+    if (pkg) {
+      await supabase.from('apps').update({ package_name: pkg }).eq('id', row.id);
+      found++;
+    }
+  }
+  return { read, found, missing: rows.length - found };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   const params = new URL(req.url).searchParams;
@@ -40,6 +88,11 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 302, headers: { ...CORS, Location: WEBSITE, Vary: 'Accept' } });
   }
   try {
+    if (params.get('task') === 'apk-packages') {
+      const result = await apkPackages(Math.min(Math.max(Number(params.get('refresh')) || 10, 1), 40));
+      return new Response(JSON.stringify(result), { headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
+    }
+
     const { data, error } = await supabase
       .from('apps')
       .select(COLUMNS)

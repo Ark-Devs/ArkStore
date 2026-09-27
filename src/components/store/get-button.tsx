@@ -21,9 +21,10 @@ import { pickDownload } from '@/lib/device';
 import { OS_LABEL } from '@/lib/github/assets';
 import { duration } from '@/lib/format';
 import { repoUrl } from '@/lib/github/repo';
-import { canOpen, cancelDownload, installApp, installFromFile, openApp } from '@/lib/install';
+import { canOpen, cancelDownload, installApp, installFromFile, isPackageInstalled, openApp, openInstalledApp } from '@/lib/install';
 import { hasUpdate, useInstalled } from '@/lib/stores/installed';
 import { installerStatus, isNeeded, useInstallers } from '@/lib/stores/installers';
+import { useOnPhoneCheck } from '@/lib/stores/on-phone';
 import { useTasks } from '@/lib/stores/tasks';
 import { friendlyError } from '@/lib/supabase';
 import type { ListApp } from '@/lib/types';
@@ -90,6 +91,18 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
   const pick = app.latest_version ? pickDownload(app) : null;
   const hasRelease = Boolean(pick);
   const update = installed ? hasUpdate(installed, app) : false;
+  // What Android says is on the phone, whoever installed it.
+  const packageName = installed?.packageName ?? app.package_name;
+  const onPhone = useOnPhoneCheck(packageName);
+
+  // Uninstalled outside ArkStore: forget it, so the button offers GET again. Asks Android once
+  // more first, as the cached answer can predate an install that just finished.
+  useEffect(() => {
+    if (!installed || onPhone !== false || !packageName) return;
+    isPackageInstalled(packageName).then((still) => {
+      if (!still) useInstalled.getState().forget(app.id);
+    });
+  }, [installed, onPhone, packageName, app.id]);
   const downloaded =
     file && file.version === app.latest_version && isNeeded(installerStatus(file, installed)) ? file : null;
   const lg = size === 'lg';
@@ -157,7 +170,13 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
   let label = 'GET';
   let onPress: () => void = () => run('install');
   let icon: React.ReactNode = null;
-  if (!hasRelease && app.latest_version && app.platforms?.length) {
+  if (!installed && onPhone === true) {
+    // Installed another way (an APK from GitHub, another store): it's there, so open it.
+    label = 'OPEN';
+    onPress = () => {
+      if (!openInstalledApp(packageName)) run('install');
+    };
+  } else if (!hasRelease && app.latest_version && app.platforms?.length) {
     // Browsing another platform's apps: say which platform it's for and open its page.
     label = OS_LABEL[app.platforms[0]].toUpperCase();
     onPress = () => router.push(`/app/${app.id}`);
