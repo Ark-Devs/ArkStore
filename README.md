@@ -18,6 +18,7 @@ App Store layouts, Nothing OS materials: dot-matrix type, true black, one red ac
 - **Signed-in devices.** Account lists every phone and computer signed in to your GitHub account, on any platform, with when each was last active. Sign any of them out from any other.
 - **Get ArkStore page** (`/download`). Recognizes the device it's opened on, puts the download that works best for it first, and lists the builds for every platform, from ArkStore's newest GitHub release.
 - **ArkStore updates itself.** The desktop app with electron-updater (from the release's `latest*.yml`), Android by installing the newest release's APK for the phone's CPU.
+- **Finds apps by itself.** Overnight the database searches GitHub for Android, Windows, macOS and Linux apps, and reads curated catalog feeds (`arkstore_private.catalog_feeds`, starting with Orion Store's list). New repos are checked against the same rules (no libraries, samples, patched or adult apps), and go live once the release sync finds an installable build.
 - **Featured apps** (`apps.featured`) get App of the Day, the top of the Apps tab, and rank first in search and their category.
 
 ## For AI agents
