@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { ArrowsClockwise } from 'phosphor-react-native/src/icons/ArrowsClockwise';
 import { EyeSlash } from 'phosphor-react-native/src/icons/EyeSlash';
 import { Eye } from 'phosphor-react-native/src/icons/Eye';
-import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
 import { PencilSimple } from 'phosphor-react-native/src/icons/PencilSimple';
 import { Plus } from 'phosphor-react-native/src/icons/Plus';
 import { Trash } from 'phosphor-react-native/src/icons/Trash';
@@ -20,7 +19,8 @@ import { EmptyState, LargeTitleScreen, RowSkeleton, SectionHeader } from '@/comp
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { useClaimable, useMyApps, useMyStats } from '@/lib/api';
-import { getGitHubToken, githubProfile, signInWithGitHub, useAuth } from '@/lib/auth';
+import { getGitHubToken, githubProfile, hasGitHub, useAuth } from '@/lib/auth';
+import { ConnectGitHubCard, SignInButtons } from '@/components/store/sign-in-buttons';
 import { compactNumber, relativeDate, shortVersion } from '@/lib/format';
 import { deleteListing, refreshListing, updateListing } from '@/lib/publish';
 import { friendlyError, isConfigured } from '@/lib/supabase';
@@ -35,19 +35,7 @@ const STEPS = [
 
 function SignedOut() {
   const c = useColors();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const signIn = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await signInWithGitHub();
-    } catch (e) {
-      setError(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <View style={{ marginHorizontal: space.gutter, borderRadius: radius.card, backgroundColor: c.surface, overflow: 'hidden' }}>
@@ -72,15 +60,10 @@ function SignedOut() {
             </View>
           ))}
         </View>
-        <Button
-          label="Sign in with GitHub"
-          size="lg"
-          full
-          loading={busy}
-          disabled={!isConfigured}
-          icon={<GithubLogo size={20} color={c.onInvert} weight="fill" />}
-          onPress={signIn}
-        />
+        <SignInButtons size="lg" full disabled={!isConfigured} onError={setError} />
+        <Txt variant="caption" color="text3">
+          Any of these works to sign in. Publishing needs your GitHub account: sign in with it, or connect it afterwards.
+        </Txt>
         {!isConfigured ? (
           <Txt variant="caption" color="accent">
             Supabase isn't configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY to .env.
@@ -273,7 +256,7 @@ export default function StudioScreen() {
   return (
     <LargeTitleScreen
       title="Studio"
-      eyebrow={profile ? `@${profile.login}` : 'Publish on ArkStore'}
+      eyebrow={profile?.login ? `@${profile.login}` : 'Publish on ArkStore'}
       accessory={
         profile?.avatar ? (
           <Tap onPress={() => router.push('/account')} accessibilityRole="button" accessibilityLabel="Account">
@@ -288,6 +271,10 @@ export default function StudioScreen() {
         <RowSkeleton count={2} />
       ) : !session ? (
         <SignedOut />
+      ) : !hasGitHub(session) ? (
+        <View style={{ paddingHorizontal: space.gutter }}>
+          <ConnectGitHubCard />
+        </View>
       ) : (
         <>
           <View style={{ paddingHorizontal: space.gutter, marginBottom: 24 }}>

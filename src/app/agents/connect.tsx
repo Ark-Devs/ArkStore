@@ -1,4 +1,3 @@
-import { GithubLogo } from 'phosphor-react-native/src/icons/GithubLogo';
 import { Key } from 'phosphor-react-native/src/icons/Key';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -13,7 +12,8 @@ import { TopBar } from '@/components/ui/top-bar';
 import { CLIENT_LABEL, type InstallClient } from '@/lib/agent-install';
 import { ARKSTORE_MARKETPLACE_REPO, ARKSTORE_MCP_URL, useApiTokens, useTokenActions } from '@/lib/agents';
 import { confirmAction, showAlert } from '@/lib/alert';
-import { signInWithGitHub, useAuth } from '@/lib/auth';
+import { hasGitHub, useAuth } from '@/lib/auth';
+import { LinkButton, SignInButtons } from '@/components/store/sign-in-buttons';
 import { relativeDate } from '@/lib/format';
 import { friendlyError } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
@@ -71,15 +71,11 @@ function Tokens() {
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
 
-  if (!session) {
+  if (!session || !hasGitHub(session)) {
     return (
       <View style={{ gap: 12 }}>
         <Note>Sign in with GitHub to create a token. Your agent can then publish repos from your GitHub account.</Note>
-        <Button
-          label="Sign in with GitHub"
-          icon={<GithubLogo size={18} color={c.onInvert} />}
-          onPress={() => signInWithGitHub().catch((e) => showAlert("Couldn't sign in", friendlyError(e)))}
-        />
+        {session ? <LinkButton provider="github" size="md" variant="primary" /> : <SignInButtons only={['github']} />}
       </View>
     );
   }
