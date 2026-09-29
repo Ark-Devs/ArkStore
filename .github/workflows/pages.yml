@@ -2,10 +2,11 @@
 # nothing else. GitHub Pages serves that branch:
 #   https://ark-devs.github.io/ArkStore/download/
 # One-time setup: Settings > Pages > Source: Deploy from a branch > `deploy` / (root).
-# Own domain (e.g. store.arkdevs.xyz): add a DNS CNAME record `store` -> `ark-devs.github.io`,
-# then set the repository variable SITE_DOMAIN=store.arkdevs.xyz (Settings > Secrets and
-# variables > Actions > Variables). The site is then built for the domain's root and GitHub
-# redirects the old ark-devs.github.io/ArkStore/... links there. Leave it unset until DNS works.
+# Served at https://store.arkdevs.xyz/ (DNS: CNAME `store` -> `ark-devs.github.io`; Settings >
+# Pages > Custom domain). The site is built for the domain's root and the CNAME file keeps the
+# domain on every deploy; GitHub redirects old ark-devs.github.io/ArkStore/... links there.
+# A fork can set the repository variable SITE_DOMAIN to its own domain, or to `none` for
+# <owner>.github.io/<repo>/.
 # Uses the same EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_KEY secrets as the releases.
 name: Download page
 
@@ -30,8 +31,8 @@ jobs:
       # Public: the GitHub OAuth app's client ID, for the "Approve on GitHub" link in Studio.
       EXPO_PUBLIC_GITHUB_CLIENT_ID: ${{ vars.GITHUB_CLIENT_ID || 'Ov23li33ek4PVfnoVtV0' }}
       # Project pages live under /<repo>/; with an own domain, at its root.
-      EXPO_BASE_URL: ${{ vars.SITE_DOMAIN == '' && format('/{0}', github.event.repository.name) || '' }}
-      SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+      EXPO_BASE_URL: ${{ vars.SITE_DOMAIN == 'none' && format('/{0}', github.event.repository.name) || '' }}
+      SITE_DOMAIN: ${{ vars.SITE_DOMAIN == 'none' && '' || vars.SITE_DOMAIN || 'store.arkdevs.xyz' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -63,7 +64,7 @@ jobs:
           redirect "$base/download/" > site/404.html
           touch site/.nojekyll
           if [ -n "$SITE_DOMAIN" ]; then echo "$SITE_DOMAIN" > site/CNAME; fi
-          printf '# ArkStore download page (generated)\n\nThis branch holds only the built Get ArkStore page, served by GitHub Pages at\nhttps://ark-devs.github.io/ArkStore/download/\n\nDon'"'"'t edit it by hand: `.github/workflows/pages.yml` on `main` rebuilds it from\n`src/app/download.tsx` on every push to main.\n' > site/README.md
+          printf '# ArkStore download page (generated)\n\nThis branch holds only the built Get ArkStore page, served by GitHub Pages at\nhttps://store.arkdevs.xyz/download/\n\nDon'"'"'t edit it by hand: `.github/workflows/pages.yml` on `main` rebuilds it from\n`src/app/download.tsx` on every push to main.\n' > site/README.md
 
       - name: Commit to the deploy branch
         working-directory: site

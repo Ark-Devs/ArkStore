@@ -7,10 +7,10 @@
 #   Chromebook: same as Linux, inside the Linux development environment.
 # What's left is in iloader: plug in the iPhone, sign in with your Apple Account and choose
 # Install SideStore. Run:
-#   curl -fsSL https://ark-devs.github.io/ArkStore/ios-setup/setup.sh | bash
+#   curl -fsSL https://store.arkdevs.xyz/ios-setup/setup.sh | bash
 set -euo pipefail
 
-GUIDE='https://ark-devs.github.io/ArkStore/download/'
+GUIDE='https://store.arkdevs.xyz/download/'
 BASE='https://github.com/nab138/iloader/releases/latest/download'
 
 bold() { printf '\n\033[1;36m%s\033[0m\n' "$*"; }

@@ -5,11 +5,11 @@
 #   3. Downloads and installs iloader (github.com/nab138/iloader), then opens it.
 # What's left is in iloader: plug in the iPhone, sign in with your Apple Account and choose
 # Install SideStore. Run it with ArkStore-iPhone-Setup.bat, or in PowerShell:
-#   irm https://ark-devs.github.io/ArkStore/ios-setup/setup-windows.ps1 | iex
+#   irm https://store.arkdevs.xyz/ios-setup/setup-windows.ps1 | iex
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$Guide = 'https://ark-devs.github.io/ArkStore/download/'
+$Guide = 'https://store.arkdevs.xyz/download/'
 $Iloader = 'https://github.com/nab138/iloader/releases/latest/download/iloader-windows-x64.msi'
 
 function Step($n, $text) { Write-Host "`n[$n/4] $text" -ForegroundColor Cyan }
