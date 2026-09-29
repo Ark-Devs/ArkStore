@@ -212,21 +212,65 @@ async fn ask_revoke(certs: Vec<DevelopmentCertificate>) -> Result<Option<Vec<Str
     Ok(if serials.is_empty() { None } else { Some(serials) })
 }
 
+/// Public anisette servers (Apple's sign-in needs the "anisette" data a Mac would send), tried
+/// in order: any one can be down or refuse some networks. ARK_ANISETTE_URL puts another first
+/// (for example one ArkStore hosts itself). The one that worked is remembered in dataDir.
+const ANISETTE_SERVERS: &[&str] = &[
+    DEFAULT_ANISETTE_V3_URL,
+    "https://ani.sidestore.io",
+    "https://ani.sidestore.app",
+    "https://ani.sidestore.zip",
+    "https://ani.846969.xyz",
+    "https://ani.neoarz.xyz",
+];
+
+fn anisette_servers(data_dir: &std::path::Path) -> Vec<String> {
+    let mut list: Vec<String> = Vec::new();
+    if let Ok(url) = std::env::var("ARK_ANISETTE_URL") {
+        list.push(url);
+    }
+    if let Ok(last) = std::fs::read_to_string(data_dir.join("anisette-server")) {
+        list.push(last.trim().to_string());
+    }
+    list.extend(ANISETTE_SERVERS.iter().map(|s| s.to_string()));
+    let mut seen = std::collections::HashSet::new();
+    list.retain(|u| !u.is_empty() && seen.insert(u.clone()));
+    list
+}
+
 async fn sign_in(email: &str, password: &str, data_dir: &std::path::Path) -> Result<DeveloperSession, Report> {
     std::fs::create_dir_all(data_dir)?;
-    let anisette = RemoteV3AnisetteProvider::new(
-        DEFAULT_ANISETTE_V3_URL,
-        Box::new(FsStorage::new(data_dir.join("anisette"))),
-        "0".to_string(),
-    )?;
-    let mut account = AppleAccount::builder(email)
-        .anisette_provider(anisette)
-        .login(password, ask_two_factor)
-        .await
-        .context("Apple Account sign-in failed")?;
-    Ok(DeveloperSession::from_account(&mut account)
-        .await
-        .context("Couldn't open the Apple developer session for this account")?)
+    let mut last_error = None;
+    for url in anisette_servers(data_dir) {
+        // Each server keeps its own provisioned identity.
+        let host = url.trim_start_matches("https://").replace(['/', ':'], "_");
+        let anisette = RemoteV3AnisetteProvider::new(
+            &url,
+            Box::new(FsStorage::new(data_dir.join("anisette").join(host))),
+            "0".to_string(),
+        )?;
+        match AppleAccount::builder(email).anisette_provider(anisette).login(password, ask_two_factor).await {
+            Ok(mut account) => {
+                let _ = std::fs::write(data_dir.join("anisette-server"), &url);
+                return Ok(DeveloperSession::from_account(&mut account)
+                    .await
+                    .context("Couldn't open the Apple developer session for this account")?);
+            }
+            Err(e) => {
+                let text = format!("{e}");
+                // Anisette trouble happens before the password is sent: try the next server.
+                // Anything else (wrong password, two-factor, Apple's limits) is final.
+                if !(text.contains("anisette") || text.contains("provision")) {
+                    return Err(e.context("Apple Account sign-in failed").into_dynamic());
+                }
+                tracing::warn!("anisette server {url} failed: {text}");
+                last_error = Some(e);
+            }
+        }
+    }
+    Err(last_error
+        .map(|e| e.context("Couldn't reach any anisette server (needed for Apple sign-in)").into_dynamic())
+        .unwrap_or_else(|| report!("No anisette server configured").into_dynamic()))
 }
 
 #[derive(Deserialize)]
