@@ -66,7 +66,8 @@
     "desktop:web": "expo export -p web --output-dir dist-web && node desktop/scripts/prepare-web.mjs",
     "desktop": "npm run desktop:web && npm --prefix desktop start",
     "desktop:dev": "npm --prefix desktop run dev",
-    "desktop:dist": "npm run desktop:web && npm --prefix desktop run dist"
+    "desktop:dist": "npm run desktop:web && npm --prefix desktop run dist",
+    "ios:sideload": "cargo build --release --lib --locked --manifest-path sideload/Cargo.toml --target aarch64-apple-ios && mkdir -p modules/ark-sideload/ios/lib && cp sideload/target/aarch64-apple-ios/release/libark_sideload.a modules/ark-sideload/ios/lib/"
   },
   "private": true
 }

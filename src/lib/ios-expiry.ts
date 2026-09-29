@@ -16,7 +16,8 @@ const BODY_COMPUTER = 'Connect your iPhone to the computer with ArkStore open (c
 /** The notification's action: open SideStore. */
 export const SIDESTORE_OPEN = 'sidestore://';
 
-function readExpiry(): Date | null {
+/** When ArkStore's own signature runs out, or null (App Store, TestFlight, developer builds). */
+export function readExpiry(): Date | null {
   try {
     const file = new File(Paths.bundle, 'embedded.mobileprovision');
     // The profile is binary (a signed envelope) around an XML plist: decode it byte by byte

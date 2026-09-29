@@ -78,19 +78,19 @@ jobs:
       - name: Build the web UI
         run: npm run desktop:web
 
-      # The iPhone installer (desktop/sideload, Rust), for each CPU this runner packages, into
-      # desktop/sideload/bin/<os>-<arch>/ where electron-builder.yml picks it up.
+      # The iPhone installer (sideload/, Rust), for each CPU this runner packages, into
+      # sideload/bin/<os>-<arch>/ where desktop/electron-builder.yml picks it up.
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            desktop/sideload/target
-          key: sideload-${{ runner.os }}-${{ hashFiles('desktop/sideload/Cargo.lock') }}
+            sideload/target
+          key: sideload-${{ runner.os }}-${{ hashFiles('sideload/Cargo.lock') }}
 
       - name: Build the iPhone installer
         shell: bash
-        working-directory: desktop/sideload
+        working-directory: sideload
         run: |
           build() { # <rust target> <electron-builder os-arch> <exe name>
             rustup target add "$1"
@@ -117,7 +117,7 @@ jobs:
       - name: Check Apple sign-in
         if: runner.os == 'Linux'
         shell: bash
-        working-directory: desktop/sideload
+        working-directory: sideload
         run: |
           out="$(echo '{"email":"arkstore-ci-check@example.com","password":"not-a-password","dataDir":"/tmp/ark-sideload"}' | bin/linux-x64/ark-sideload signin 2>/tmp/sideload.log || true)"
           echo "$out"

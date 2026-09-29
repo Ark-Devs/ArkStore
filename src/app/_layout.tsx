@@ -25,6 +25,7 @@ import '@/lib/devices';
 import { desktop, onDesktopUrl } from '@/lib/desktop';
 import { isPackageInstalled, reconcileDesktopApps, reconcileInstallers } from '@/lib/install';
 import { openExternal, scheduleExpiryReminders } from '@/lib/ios-expiry';
+import { renewIfDue } from '@/lib/ios-sideload';
 import { useInstalled } from '@/lib/stores/installed';
 import { forgetPhoneChecks } from '@/lib/stores/on-phone';
 import { supabase } from '@/lib/supabase';
@@ -78,8 +79,10 @@ function UpdateWatcher() {
         await reconcileInstallers().catch(() => undefined);
       }
       await checkForUpdates({ notify: false }).catch(() => undefined);
-      // iPhone: move the "apps expire in 3 days" reminders to the current signature.
+      // iPhone: move the "apps expire in 3 days" reminders to the current signature, and renew
+      // apps (ArkStore included) that are due, on the iPhone itself.
       await scheduleExpiryReminders().catch(() => undefined);
+      if (Platform.OS === 'ios') renewIfDue().catch(() => undefined);
     };
     refresh();
     const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());

@@ -1,6 +1,6 @@
 // iPhone: ArkStore installs iPhone apps itself, signed with the person's own free Apple Account,
 // over USB (or Wi-Fi once the iPhone has been set up for it). No SideStore, AltServer or iloader.
-// The work is done by ark-sideload (desktop/sideload, Rust), run once per job; this file runs it,
+// The work is done by ark-sideload (sideload/, Rust), run once per job; this file runs it,
 // relays its questions (two-factor code, which certificate to replace) to the window, keeps the
 // Apple Account password encrypted with the operating system's keychain (safeStorage) when the
 // person asks it to, and re-signs installed apps before their 7 days run out.
@@ -47,7 +47,7 @@ function sidecar() {
   const exe = process.platform === 'win32' ? 'ark-sideload.exe' : 'ark-sideload';
   const candidates = app.isPackaged
     ? [path.join(process.resourcesPath, 'sideload', exe)]
-    : ['release', 'debug'].map((p) => path.join(__dirname, 'sideload', 'target', p, exe));
+    : ['release', 'debug'].map((p) => path.join(__dirname, '..', 'sideload', 'target', p, exe));
   const found = candidates.find((p) => fs.existsSync(p));
   if (!found) throw new Error('The iPhone installer is missing from this ArkStore build.');
   return found;
@@ -86,7 +86,7 @@ function run(command, request, { onEvent = () => {}, background = false } = {}) 
           continue;
         }
         if (event.event === 'error') error = event.message;
-        else if (['done', 'devices', 'devmode', 'signedIn'].includes(event.event)) result = event;
+        else if (['done', 'devices', 'devmode', 'signedIn', 'paired', 'pong'].includes(event.event)) result = event;
         else onEvent(event);
       }
     });
@@ -151,8 +151,12 @@ async function fetchIpa(url) {
   return dest;
 }
 
+// ArkStore itself: after installing it, the desktop app also sets it up to install and renew
+// apps on the iPhone without a computer (pairing file in its Documents; see sideload/src/lib.rs).
+const ARKSTORE_BUNDLE_ID = 'com.arkdevs.arkstore';
+
 /** Signs and installs one app. Used by the window and by the background refresh. */
-async function installApp({ udid, url, name, iconUrl }, { email, password, background = false }) {
+async function installApp({ udid, url, name, iconUrl, pairFor }, { email, password, background = false }) {
   const ipa = await fetchIpa(url);
   const onEvent = (event) => {
     if (background && (event.event === 'twoFactor' || event.event === 'maxCerts')) {
@@ -164,12 +168,20 @@ async function installApp({ udid, url, name, iconUrl }, { email, password, backg
   };
   await run(
     'install',
-    { udid, email, password, ipa, dataDir: path.join(dataDir(), 'account'), machineName: `ArkStore on ${os.hostname().replace(/\.local$/, '').slice(0, 30)}` },
+    {
+      target: { udid },
+      email,
+      password,
+      ipa,
+      dataDir: path.join(dataDir(), 'account'),
+      machineName: `ArkStore on ${os.hostname().replace(/\.local$/, '').slice(0, 30)}`,
+      pairFor: pairFor === ARKSTORE_BUNDLE_ID ? pairFor : undefined,
+    },
     { onEvent, background },
   );
   const state = readState();
   state.apps = (state.apps || []).filter((a) => !(a.udid === udid && a.url === url));
-  state.apps.push({ udid, url, name, iconUrl: iconUrl || null, installedAt: new Date().toISOString() });
+  state.apps.push({ udid, url, name, iconUrl: iconUrl || null, pairFor: pairFor || null, installedAt: new Date().toISOString() });
   writeState(state);
 }
 
@@ -270,7 +282,13 @@ function register(windowGetter) {
     const pw = password || savedPassword(s);
     if (!s.email || !pw) throw new Error('Sign in with your Apple Account first.');
     await installApp(
-      { udid: String(target.udid), url: String(target.url), name: String(target.name || 'App').slice(0, 60), iconUrl: target.iconUrl },
+      {
+        udid: String(target.udid),
+        url: String(target.url),
+        name: String(target.name || 'App').slice(0, 60),
+        iconUrl: target.iconUrl,
+        pairFor: target.pairFor === ARKSTORE_BUNDLE_ID ? ARKSTORE_BUNDLE_ID : undefined,
+      },
       { email: s.email, password: pw },
     );
   });

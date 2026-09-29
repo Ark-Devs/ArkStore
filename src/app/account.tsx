@@ -24,6 +24,7 @@ import { TopBar } from '@/components/ui/top-bar';
 import { githubProfile, hasGitHub, linkedProviders, PROVIDER_LABEL, signOut, useAuth, useProviders } from '@/lib/auth';
 import { LinkButton, SignInButtons } from '@/components/store/sign-in-buttons';
 import { desktop } from '@/lib/desktop';
+import { iphoneLocal } from '@/lib/ios-sideload';
 import { abiLabel, deviceAbis } from '@/lib/device';
 import { archLabel, OS_LABEL } from '@/lib/github/assets';
 import { currentArkStoreVersion } from '@/lib/self-update';
@@ -303,6 +304,19 @@ export default function AccountScreen() {
               <Txt variant="caption" color="text3" style={{ marginTop: 10 }}>
                 ArkStore uses this to download the smallest build that runs on your phone.
               </Txt>
+            </View>
+          </>
+        ) : null}
+
+        {iphoneLocal ? (
+          <>
+            <View style={{ height: 24 }} />
+            <SectionHeader title="iPhone apps" />
+            <View style={{ paddingHorizontal: space.gutter, gap: 10 }}>
+              <Txt variant="callout" color="text2">
+                Apps ArkStore installed with your Apple Account, and when each needs renewing.
+              </Txt>
+              <Button label="Your apps and renewing" variant="secondary" onPress={() => router.push('/iphone')} />
             </View>
           </>
         ) : null}

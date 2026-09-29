@@ -2,8 +2,8 @@
 // free Apple Account: plug in the iPhone, sign in once, install. No SideStore, AltServer or
 // iloader. It installs ArkStore first (or the app in ?app=<id>), then keeps every app it
 // installed signed, re-signing them in the background while the iPhone is connected. The work
-// happens in desktop/iphone.cjs and desktop/sideload (Rust). Outside the desktop app this page
-// explains where to get it.
+// happens in desktop/iphone.cjs (computer) or src/lib/ios-sideload.ts (the iPhone itself), both
+// on the installer in sideload/ (Rust). Elsewhere this page explains where to get it.
 import { router, useLocalSearchParams } from 'expo-router';
 import { CheckCircle } from 'phosphor-react-native/src/icons/CheckCircle';
 import { CircleIcon as Circle } from 'phosphor-react-native/src/icons/Circle';
@@ -21,16 +21,21 @@ import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
 import { desktop, type IPhoneApp, type IPhoneDevice, type IPhoneEvent } from '@/lib/desktop';
 import { rankAssets } from '@/lib/github/assets';
+import { IOS_LINKS, openInApp } from '@/lib/ios';
+import { iphoneLocal } from '@/lib/ios-sideload';
 import { useLatestArkStore } from '@/lib/self-update';
 import { radius, space, useColors } from '@/theme';
 
-const bridge = desktop?.iphone;
+// On a computer the desktop app's installer; on the iPhone, ArkStore's own (src/lib/ios-sideload.ts).
+const bridge = desktop?.iphone ?? iphoneLocal;
+const onPhone = !desktop?.iphone && Boolean(iphoneLocal);
 
 const STAGE: Record<string, string> = {
   download: 'Downloading',
   signin: 'Signing in to Apple',
   sign: 'Signing with your Apple Account',
   transfer: 'Copying to the iPhone',
+  pair: 'Setting up renewing on the iPhone',
   done: 'Installed',
 };
 
@@ -145,6 +150,7 @@ export default function IPhoneScreen() {
 
   const [driver, setDriver] = useState(true);
   const [devices, setDevices] = useState<IPhoneDevice[] | null>(null);
+  const [problem, setProblem] = useState<'no-pairing' | 'vpn' | null>(null);
   const [udid, setUdid] = useState<string | null>(null);
   const [account, setAccount] = useState<{ email: string | null; remembered: boolean; canRemember: boolean; apps: IPhoneApp[] } | null>(null);
   const [email, setEmail] = useState('');
@@ -181,11 +187,13 @@ export default function IPhoneScreen() {
         const r = await bridge.devices();
         setDriver(r.driver);
         setDevices(r.devices);
+        setProblem(r.problem ?? null);
         setUdid((cur) => (cur && r.devices.some((d) => d.udid === cur) ? cur : r.devices.find((d) => d.trusted)?.udid ?? r.devices[0]?.udid ?? null));
       } catch {
         setDriver(false);
       }
-      if (polling.current) timer = setTimeout(tick, 2500);
+      // On the iPhone each check is a network round trip through LocalDevVPN: less often.
+      if (polling.current) timer = setTimeout(tick, onPhone ? 5000 : 2500);
     };
     tick();
     return () => {
@@ -217,7 +225,7 @@ export default function IPhoneScreen() {
   const targetIpa = target ? rankAssets(target.assets, { os: 'ios' }).find((f) => /\.ipa$/i.test(f.name)) ?? null : null;
   const install = target
     ? targetIpa && { url: targetIpa.url, name: target.name, iconUrl: target.icon_url }
-    : arkIpa && { url: arkIpa.url, name: 'ArkStore', iconUrl: 'https://github.com/Ark-Devs.png' };
+    : arkIpa && { url: arkIpa.url, name: 'ArkStore', iconUrl: 'https://github.com/Ark-Devs.png', pairFor: 'com.arkdevs.arkstore' };
   const needPassword = signedIn && !account?.remembered;
 
   const signIn = async () => {
@@ -275,15 +283,44 @@ export default function IPhoneScreen() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <TopBar close title="iPhone" />
       <ScrollView contentContainerStyle={{ padding: space.gutter, gap: 14, paddingBottom: 60, maxWidth: 720, width: '100%', alignSelf: 'center' }}>
-        <Txt variant="title">{target ? `Install ${target.name} on your iPhone` : 'Set up your iPhone'}</Txt>
+        <Txt variant="title">{target ? `Install ${target.name}` : onPhone ? 'Your apps' : 'Set up your iPhone'}</Txt>
         <P>
-          ArkStore installs apps on your iPhone signed with your own free Apple Account, then keeps them signed: while ArkStore
-          is open on this computer, it renews them every few days whenever the iPhone is connected.
+          {onPhone
+            ? 'ArkStore installs apps signed with your own free Apple Account and renews them on this iPhone, every few days, when LocalDevVPN is connected. No computer needed.'
+            : 'ArkStore installs apps on your iPhone signed with your own free Apple Account. It also sets up ArkStore on the iPhone to renew them by itself, so after this you only need the computer again if you reset the iPhone.'}
         </P>
 
-        {/* 1. The iPhone */}
-        <Step done={ready} active title={ready ? `Connected: ${device!.name || 'iPhone'} (iOS ${device!.ios})` : 'Connect your iPhone'}>
-          {!driver ? (
+        {/* 1. The iPhone (on the iPhone itself: LocalDevVPN and the pairing file) */}
+        <Step
+          done={ready}
+          active
+          title={
+            ready
+              ? onPhone
+                ? 'Ready: LocalDevVPN connected'
+                : `Connected: ${device!.name || 'iPhone'} (iOS ${device!.ios})`
+              : onPhone
+                ? problem === 'no-pairing'
+                  ? 'Set up once with a computer'
+                  : 'Connect LocalDevVPN'
+                : 'Connect your iPhone'
+          }>
+          {onPhone ? (
+            ready ? null : problem === 'no-pairing' ? (
+              <P>
+                ArkStore needs to be installed once by ArkStore on a computer (Windows, Mac or Linux): open it there, go to Account ›
+                Set up iPhone and install ArkStore with the iPhone plugged in. That also sets up this iPhone to renew apps by itself.
+              </P>
+            ) : (
+              <>
+                <P>
+                  ArkStore reaches this iPhone through LocalDevVPN, a free app that keeps everything on the iPhone. Get it from the App
+                  Store, open it and tap Connect, then come back here.
+                </P>
+                <Button label="Get LocalDevVPN" variant="accent" onPress={() => openInApp(IOS_LINKS.localDevVpn)} />
+              </>
+            )
+          ) : !driver ? (
             desktop?.os === 'linux' ? (
               <>
                 <P>ArkStore talks to the iPhone through usbmuxd. Install it once, then plug the iPhone in again:</P>
@@ -359,7 +396,8 @@ export default function IPhoneScreen() {
           )}
         </Step>
 
-        {/* 3. Install */}
+        {/* 3. Install (on the iPhone: only when installing a chosen app) */}
+        {onPhone && !target ? null : (
         <Step done={Boolean(installed)} active={ready && signedIn} title={installed ? `${installed} is on your iPhone` : `Install ${install?.name ?? 'ArkStore'}`}>
           {busy === 'install' ? (
             question ? (
@@ -373,6 +411,8 @@ export default function IPhoneScreen() {
                 <Button size="sm" variant="ghost" label="Cancel" onPress={() => bridge.cancel()} />
               </View>
             )
+          ) : installed && onPhone ? (
+            <P>Open it from the Home Screen. ArkStore renews it with your other apps.</P>
           ) : installed ? (
             <View style={{ gap: 10 }}>
               <P>Two things on the iPhone, once:</P>
@@ -387,13 +427,18 @@ export default function IPhoneScreen() {
               ) : (
                 <P>2. If iOS asks for Developer Mode: Settings › Privacy & Security › Developer Mode › On, then restart.</P>
               )}
-              {!target ? <P>Then open ArkStore on the iPhone. Apps you install from it are signed the same way.</P> : null}
+              {!target ? (
+                <P>
+                  3. On the iPhone, get LocalDevVPN from the App Store. Then open ArkStore there: it installs apps and renews them by
+                  itself, with LocalDevVPN connected. You can unplug the iPhone.
+                </P>
+              ) : null}
             </View>
           ) : (
             <>
               {needPassword ? <Field label="Apple Account password" value={password} onChangeText={setPassword} secureTextEntry /> : null}
               <Button
-                label={`Install ${install?.name ?? 'ArkStore'} on ${device?.name || 'the iPhone'}`}
+                label={onPhone ? `Install ${install?.name ?? ''}` : `Install ${install?.name ?? 'ArkStore'} on ${device?.name || 'the iPhone'}`}
                 variant="accent"
                 disabled={!install || (needPassword && !password)}
                 onPress={doInstall}
@@ -402,6 +447,7 @@ export default function IPhoneScreen() {
             </>
           )}
         </Step>
+        )}
 
         {error ? (
           <View style={{ borderRadius: radius.card, borderWidth: 1, borderColor: c.accent, padding: 14 }}>

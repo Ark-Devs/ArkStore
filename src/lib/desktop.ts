@@ -33,7 +33,7 @@ export type IPhoneApp = { udid: string; url: string; name: string; iconUrl: stri
 
 /** What ark-sideload reports while it works (see desktop/iphone.cjs). */
 export type IPhoneEvent =
-  | { event: 'progress'; stage: 'download' | 'signin' | 'sign' | 'transfer' | 'done'; percent: number; name?: string }
+  | { event: 'progress'; stage: 'download' | 'signin' | 'sign' | 'transfer' | 'pair' | 'done'; percent: number; name?: string }
   | {
       event: 'twoFactor';
       sms: boolean;
@@ -52,12 +52,17 @@ export type IPhoneAnswer =
   | { revoke: string[] };
 
 export type IPhoneBridge = {
-  devices: () => Promise<{ driver: boolean; devices: IPhoneDevice[] }>;
+  /**
+   * On the iPhone itself (src/lib/ios-sideload.ts) the one device is the iPhone, and `problem`
+   * says why it can't be reached: no pairing file yet, or LocalDevVPN not connected.
+   */
+  devices: () => Promise<{ driver: boolean; devices: IPhoneDevice[]; problem?: 'no-pairing' | 'vpn'; message?: string }>;
   account: () => Promise<{ email: string | null; remembered: boolean; canRemember: boolean; apps: IPhoneApp[] }>;
   signIn: (email: string, password: string, remember: boolean) => Promise<{ team: { id: string; name: string | null } | null }>;
   signOut: () => Promise<void>;
   /** Password only when it isn't remembered. */
-  install: (target: { udid: string; url: string; name: string; iconUrl?: string | null }, password?: string) => Promise<void>;
+  /** pairFor 'com.arkdevs.arkstore' (ArkStore itself) also sets it up to renew apps on the iPhone. */
+  install: (target: { udid: string; url: string; name: string; iconUrl?: string | null; pairFor?: string }, password?: string) => Promise<void>;
   refresh: () => Promise<{ refreshed: number; failed?: string[]; needsPassword?: boolean }>;
   forgetApp: (udid: string, url: string) => Promise<void>;
   answer: (answer: IPhoneAnswer) => void;

@@ -13,6 +13,7 @@ import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
 import { desktop } from '@/lib/desktop';
+import { iphoneLocal } from '@/lib/ios-sideload';
 import { fileSize, shortVersion } from '@/lib/format';
 import { rankAssets } from '@/lib/github/assets';
 import { openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
@@ -86,11 +87,15 @@ export default function IosInstallScreen() {
         </View>
         <DotRule />
 
-        {desktop?.iphone ? (
+        {desktop?.iphone || iphoneLocal ? (
           <Way
-            title="From this computer"
-            body={`ArkStore signs ${app.name} with your Apple Account and installs it on your iPhone over USB. No other app needed.`}>
-            <Button label="Install on iPhone" variant="accent" onPress={() => router.push(`/iphone?app=${app.id}`)} />
+            title={iphoneLocal ? 'Install with ArkStore' : 'From this computer'}
+            body={
+              iphoneLocal
+                ? `ArkStore signs ${app.name} with your Apple Account and installs it, then renews it with your other apps.`
+                : `ArkStore signs ${app.name} with your Apple Account and installs it on your iPhone over USB. No other app needed.`
+            }>
+            <Button label={iphoneLocal ? 'Install' : 'Install on iPhone'} variant="accent" onPress={() => router.push(`/iphone?app=${app.id}`)} />
           </Way>
         ) : null}
 

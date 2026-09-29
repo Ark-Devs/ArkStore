@@ -49,6 +49,8 @@ export const IOS_LINKS = {
   feather: 'https://github.com/khcrysalis/Feather',
   appleDeveloper: 'https://developer.apple.com/programs/',
   refreshShortcutIssue: 'https://github.com/SideStore/SideStore/issues/822',
+  /** The App Store, searching for LocalDevVPN (opens the App Store app on the iPhone). */
+  localDevVpn: 'itms-apps://search.itunes.apple.com/WebObjects/MZSearch.woa/wa/search?media=software&term=LocalDevVPN',
 };
 
 /** Opens a deep link into another app; resolves false when that app isn't installed. */

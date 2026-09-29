@@ -99,6 +99,7 @@ version = "0.1.0"
 dependencies = [
  "idevice",
  "isideload",
+ "plist",
  "rootcause",
  "rustls",
  "serde",
