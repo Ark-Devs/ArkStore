@@ -249,7 +249,7 @@ function installDriver() {
 function register(windowGetter) {
   getWindow = windowGetter;
 
-  ipcMain.handle('iphone-devices', () => run('devices', {}).then((r) => ({ driver: r.driver, devices: r.devices })));
+  ipcMain.handle('iphone-devices', () => run('devices', {}).then((r) => ({ driver: r.driver, devices: r.devices, message: r.error || undefined })));
 
   ipcMain.handle('iphone-account', () => {
     const s = readState();

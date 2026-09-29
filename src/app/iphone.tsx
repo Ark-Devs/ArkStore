@@ -151,6 +151,8 @@ export default function IPhoneScreen() {
   const [driver, setDriver] = useState(true);
   const [devices, setDevices] = useState<IPhoneDevice[] | null>(null);
   const [problem, setProblem] = useState<'no-pairing' | 'vpn' | null>(null);
+  // Why the iPhone list is empty, when it isn't simply "nothing plugged in".
+  const [listError, setListError] = useState<string | null>(null);
   const [udid, setUdid] = useState<string | null>(null);
   const [account, setAccount] = useState<{ email: string | null; remembered: boolean; canRemember: boolean; apps: IPhoneApp[] } | null>(null);
   const [email, setEmail] = useState('');
@@ -188,9 +190,11 @@ export default function IPhoneScreen() {
         setDriver(r.driver);
         setDevices(r.devices);
         setProblem(r.problem ?? null);
+        setListError(r.message ?? null);
         setUdid((cur) => (cur && r.devices.some((d) => d.udid === cur) ? cur : r.devices.find((d) => d.trusted)?.udid ?? r.devices[0]?.udid ?? null));
-      } catch {
+      } catch (e) {
         setDriver(false);
+        setListError((e as Error).message);
       }
       // On the iPhone each check is a network round trip through LocalDevVPN: less often.
       if (polling.current) timer = setTimeout(tick, onPhone ? 5000 : 2500);
@@ -346,7 +350,14 @@ export default function IPhoneScreen() {
           ) : !devices?.length ? (
             <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
               <DeviceMobile size={28} color={c.text3} />
-              <P>Plug your iPhone into this computer with a cable and unlock it.</P>
+              <View style={{ flex: 1, gap: 6 }}>
+                <P>Plug your iPhone into this computer with a cable and unlock it.</P>
+                {listError ? (
+                  <Txt variant="caption" color="accent">
+                    {listError}
+                  </Txt>
+                ) : null}
+              </View>
             </View>
           ) : !device?.trusted ? (
             <P>On the iPhone, tap Trust when it asks about this computer, and enter your passcode.</P>
