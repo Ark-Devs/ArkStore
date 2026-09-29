@@ -85,15 +85,20 @@ function run(command: string, request: object, { quiet = false } = {}): Promise<
 function friendly(message: string): string {
   const m = String(message);
   const last = m.split('\n').filter(Boolean).pop() || m;
-  if (/-20101|incorrect|invalid.*(password|credentials)/i.test(m)) return 'Wrong Apple Account email or password.';
-  if (/-22421|-22411|too many/i.test(m)) return 'Apple is limiting sign-ins for this account right now. Wait an hour and try again.';
-  if (/maximum.*app id|app id limit|-7011/i.test(m))
-    return 'Your free Apple Account can register 10 new apps a week, and that limit is reached. It resets within 7 days; apps you already have can still be renewed.';
-  if (/3 apps|maximum number of (installed )?apps/i.test(m)) return 'A free Apple Account can have 3 apps signed this way at a time. Delete one and try again.';
-  if (/Connect LocalDevVPN|timed out|Connection refused|os error 6[01]/i.test(m)) return 'Connect LocalDevVPN (open it and tap Connect), then try again.';
-  if (/pairing file/i.test(m)) return last;
-  if (/Cancelled/.test(m)) return 'Cancelled.';
-  return last;
+  const hint = ((): string | null => {
+    if (/-20101|incorrect|invalid.*(password|credentials)/i.test(m)) return 'Wrong Apple Account email or password.';
+    if (/-20209|-20283|account.{0,40}locked|locked.{0,40}account|disabled for security/i.test(m))
+      return 'Apple has locked this Apple Account for security. Unlock it at iforgot.apple.com, then sign in again.';
+    if (/-22421|-22411|too many/i.test(m)) return 'Apple is limiting sign-ins for this account right now. Wait an hour and try again.';
+    if (/anisette/i.test(m)) return "Couldn't reach Apple's sign-in helper servers. Check the internet connection and try again.";
+    if (/maximum.*app id|app id limit|-7011/i.test(m))
+      return 'Your free Apple Account can register 10 new apps a week, and that limit is reached. It resets within 7 days; apps you already have can still be renewed.';
+    if (/3 apps|maximum number of (installed )?apps/i.test(m)) return 'A free Apple Account can have 3 apps signed this way at a time. Delete one and try again.';
+    if (/Connect LocalDevVPN|timed out|Connection refused|os error 6[01]/i.test(m)) return 'Connect LocalDevVPN (open it and tap Connect), then try again.';
+    if (/Cancelled/.test(m)) return 'Cancelled.';
+    return null;
+  })();
+  return hint && hint !== 'Cancelled.' && last !== hint ? `${hint} (${last})` : hint || last;
 }
 
 async function downloadIpa(url: string): Promise<string> {
