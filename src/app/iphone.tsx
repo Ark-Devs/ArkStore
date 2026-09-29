@@ -22,7 +22,7 @@ import { useApp } from '@/lib/api';
 import { desktop, type IPhoneApp, type IPhoneDevice, type IPhoneEvent } from '@/lib/desktop';
 import { rankAssets } from '@/lib/github/assets';
 import { IOS_LINKS, openInApp } from '@/lib/ios';
-import { iphoneLocal } from '@/lib/ios-sideload';
+import { DETAILS, iphoneLocal } from '@/lib/ios-sideload';
 import { useLatestArkStore } from '@/lib/self-update';
 import { radius, space, useColors } from '@/theme';
 
@@ -68,6 +68,37 @@ const P = ({ children }: { children: ReactNode }) => (
     {children}
   </Txt>
 );
+
+/**
+ * An error from the installer: what to do, then Apple's or the iPhone's own words behind
+ * "Show details" (both installers put them after DETAILS), so any error can be diagnosed.
+ */
+function ErrorBox({ error }: { error: string }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const [summary, details] = error.split(DETAILS);
+  return (
+    <View style={{ borderRadius: radius.card, borderWidth: 1, borderColor: c.accent, padding: 14, gap: 8 }}>
+      <Txt variant="callout" color="accent" selectable>
+        {summary}
+      </Txt>
+      {details && details.trim() !== summary.trim() ? (
+        <>
+          <Tap onPress={() => setOpen(!open)} accessibilityRole="button">
+            <Txt variant="label" color="text2">
+              {open ? 'Hide details' : 'Show details'}
+            </Txt>
+          </Tap>
+          {open ? (
+            <Txt variant="mono" color="text2" style={{ fontSize: 12 }} selectable>
+              {details}
+            </Txt>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
 
 function ProgressBar({ percent }: { percent: number }) {
   const c = useColors();
@@ -272,7 +303,7 @@ export default function IPhoneScreen() {
     try {
       const r = await bridge.refresh();
       if (r.needsPassword) setError('Turn on "Remember my password" to refresh apps without asking.');
-      else if (r.failed?.length) setError(r.failed.join('\n'));
+      else if (r.failed?.length) setError(r.failed.map((f) => f.split(DETAILS)[0]).join('\n') + DETAILS + r.failed.join('\n\n'));
       await loadAccount();
     } catch (e) {
       setError((e as Error).message);
@@ -460,13 +491,7 @@ export default function IPhoneScreen() {
         </Step>
         )}
 
-        {error ? (
-          <View style={{ borderRadius: radius.card, borderWidth: 1, borderColor: c.accent, padding: 14 }}>
-            <Txt variant="callout" color="accent">
-              {error}
-            </Txt>
-          </View>
-        ) : null}
+        {error ? <ErrorBox error={error} /> : null}
 
         {/* Installed apps and their 7 days */}
         {myApps.length ? (

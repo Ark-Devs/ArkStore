@@ -69,7 +69,7 @@ function run(command: string, request: object, { quiet = false } = {}): Promise<
           clearInterval(timer);
           if (current === job) current = null;
           if (result && e.ok) resolve(result);
-          else reject(new Error(friendly(error ?? 'The installer stopped.')));
+          else reject(new Error(`${friendly(error ?? 'The installer stopped.')}${DETAILS}${error ?? 'The installer stopped without an error message.'}`));
           return;
         }
         if (e.event === 'error') error = String(e.message ?? '');
@@ -80,6 +80,9 @@ function run(command: string, request: object, { quiet = false } = {}): Promise<
     }, 120);
   });
 }
+
+/** Separates the sentence shown in the app from the full error behind "Show details". */
+export const DETAILS = '\n\n--- details ---\n';
 
 /** Apple's and the iPhone's errors, as something a person can act on (see desktop/iphone.cjs). */
 function friendly(message: string): string {

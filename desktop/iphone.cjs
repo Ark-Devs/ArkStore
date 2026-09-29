@@ -93,7 +93,8 @@ function run(command, request, { onEvent = () => {}, background = false } = {}) 
     child.stderr.on('data', (chunk) => {
       stderr = (stderr + chunk).slice(-20000);
     });
-    child.on('error', (e) => reject(e));
+    // The installer couldn't start at all (missing, or blocked by antivirus).
+    child.on('error', (e) => reject(new Error(`Couldn't start ArkStore's iPhone installer.${DETAILS}${e.message}`)));
     child.on('close', (code) => {
       if (job?.id === id) job = null;
       if (result && code === 0) return resolve(result);
@@ -102,11 +103,17 @@ function run(command, request, { onEvent = () => {}, background = false } = {}) 
         fs.mkdirSync(dataDir(), { recursive: true });
         fs.writeFileSync(log, `${command} failed (exit ${code})\n${error || ''}\n\n${stderr}`);
       } catch {}
-      reject(new Error(friendly(error || `The iPhone installer stopped (exit ${code}).`)));
+      // Crashed before it could report an error: its last log lines are the best explanation.
+      const tail = stderr.replace(/\x1b\[[0-9;]*m/g, '').trim().split('\n').slice(-8).join('\n');
+      const detail = error || tail || `The iPhone installer stopped (exit ${code}).`;
+      reject(new Error(`${friendly(error || `The iPhone installer stopped (exit ${code}).`)}${DETAILS}${detail}`));
     });
     child.stdin.write(`${JSON.stringify(request)}\n`);
   });
 }
+
+/** Separates the sentence shown in the app from the full error behind "Show details". */
+const DETAILS = '\n\n--- details ---\n';
 
 /** Apple's and the device's errors, as something a person can act on. */
 function friendly(message) {
@@ -218,7 +225,7 @@ async function refreshDue({ force = false } = {}) {
       await installApp(a, { email: state.email, password, background: !force });
       refreshed++;
     } catch (e) {
-      failed.push(`${a.name}: ${e.message}`);
+      failed.push(`${a.name}: ${e.message.split(DETAILS)[0]}`);
     }
   }
   if (failed.length && Notification.isSupported()) {
