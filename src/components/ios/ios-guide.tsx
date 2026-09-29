@@ -1,5 +1,6 @@
-// The iPhone and iPad guide on /download: setting up SideStore once (the only step that needs a
-// computer), adding ArkStore's source, keeping apps signed, and the other ways to install.
+// The iPhone and iPad guide on /download: setting up with ArkStore on a computer (recommended),
+// or SideStore once (the only step that needs a computer), adding ArkStore's source, keeping
+// apps signed, and the other ways to install.
 // The setup steps follow SideStore's own docs (docs.sidestore.io/docs/installation).
 import { router } from 'expo-router';
 import { ArrowSquareOut } from 'phosphor-react-native/src/icons/ArrowSquareOut';
@@ -172,22 +173,60 @@ function EasySetup() {
   );
 }
 
-/** The simplest way, first: ArkStore on a computer installs and renews iPhone apps itself. */
+/**
+ * The way we recommend, first: ArkStore on a computer installs ArkStore on the iPhone, and from
+ * then on ArkStore on the iPhone installs and renews apps by itself (desktop/iphone.cjs,
+ * src/lib/ios-sideload.ts). No SideStore, AltServer or iloader.
+ */
 function ComputerWay() {
   const c = useColors();
   return (
-    <View style={{ gap: 12, padding: 18, borderRadius: radius.card, backgroundColor: c.surface, borderWidth: 1, borderColor: c.accent }}>
-      <Txt variant="headline">The easy way: ArkStore on your computer</Txt>
-      <P>
-        ArkStore for Windows, Mac and Linux installs iPhone apps itself. Plug in the iPhone, sign in with your free Apple
-        Account, and click Install. It installs ArkStore on the iPhone and renews your apps every few days while the iPhone is
-        connected. Nothing else to install (on Windows, ArkStore adds Apple&apos;s iPhone driver for you).
-      </P>
-      {desktop?.iphone ? (
-        <Button label="Set up iPhone" variant="accent" onPress={() => router.push('/iphone')} />
-      ) : (
-        <P>Download ArkStore for your computer from this page, open it, and go to Account › Set up iPhone.</P>
-      )}
+    <View style={{ gap: 16, padding: 18, borderRadius: radius.card, backgroundColor: c.surface, borderWidth: 1, borderColor: c.accent }}>
+      <View style={{ gap: 4 }}>
+        <Txt variant="label" color="accent">
+          Recommended · about 5 minutes
+        </Txt>
+        <Txt variant="headline">Set up with ArkStore on your computer</Txt>
+        <P>
+          ArkStore is the only app you need. Your computer does the first install over a USB cable; after that ArkStore on the
+          iPhone installs and renews apps by itself.
+        </P>
+      </View>
+      <Step n={1} title="Get ArkStore for your computer">
+        <P>
+          Windows, Mac or Linux, from the downloads {desktop ? 'page' : 'above'}. On Windows ArkStore adds Apple&apos;s iPhone driver
+          for you; on Linux install usbmuxd first (sudo apt install usbmuxd).
+        </P>
+        {desktop?.iphone ? <Button label="Set up iPhone" variant="accent" onPress={() => router.push('/iphone')} /> : null}
+      </Step>
+      <Step n={2} title="Plug in the iPhone and open Set up iPhone">
+        <P>In ArkStore go to Account › Set up iPhone. Unlock the iPhone and tap Trust when it asks about the computer.</P>
+      </Step>
+      <Step n={3} title="Sign in with your Apple Account, then Install">
+        <P>
+          A free Apple Account works (a second one just for this is fine). If Apple asks, type the verification code right in
+          ArkStore. Your password goes from your computer straight to Apple, never to us. Click Install ArkStore.
+        </P>
+      </Step>
+      <Step n={4} title="On the iPhone, once">
+        <Bullets
+          items={[
+            'Settings › General › VPN & Device Management › tap your Apple Account › Trust.',
+            'Settings › Privacy & Security › Developer Mode › On, then restart (iOS 16 and later).',
+            'Get LocalDevVPN from the App Store, open it and tap Connect.',
+          ]}
+        />
+      </Step>
+      <Step n={5} title="That's it: unplug">
+        <P>
+          Open ArkStore on the iPhone and install apps from their pages. With LocalDevVPN connected, ArkStore renews them (and
+          itself) before their 7 days run out, whenever you open it. You only need the computer again after resetting the iPhone.
+        </P>
+      </Step>
+      <Txt variant="caption" color="text3">
+        Apple&apos;s rules for free accounts: 3 apps signed this way at a time, up to 10 new apps a week, and each signature lasts 7
+        days (ArkStore renews them).
+      </Txt>
     </View>
   );
 }
@@ -201,19 +240,18 @@ export function IosGuide() {
           Install apps on iPhone and iPad
         </Txt>
         <Txt variant="body" color="text2" style={{ maxWidth: 760 }}>
-          Apple only lets iPhones install apps from the App Store. SideStore gets around that with your own free Apple
-          Account: it signs apps on the phone itself and renews them before they run out, so after a one-time setup with a
-          computer (about 15 minutes) you never need the computer again. Then ArkStore&apos;s iOS apps install in SideStore with
-          one tap.
+          Apple only lets iPhones install apps from the App Store. ArkStore gets around that with your own free Apple Account:
+          it signs apps and installs them, then renews them before they run out. The first install needs a computer, once;
+          after that everything happens on the iPhone.
         </Txt>
       </View>
 
       <ComputerWay />
 
       <View style={{ gap: 4, paddingHorizontal: 4, paddingTop: 8 }}>
-        <Txt variant="headline">Or: SideStore, without a computer after setup</Txt>
+        <Txt variant="headline">Or: with SideStore</Txt>
         <Txt variant="callout" color="text2">
-          SideStore renews apps on the iPhone itself, so after this setup you never need a computer.
+          Already use SideStore, AltStore, TrollStore or Feather? ArkStore&apos;s iOS apps install through them too.
         </Txt>
       </View>
 
