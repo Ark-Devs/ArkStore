@@ -35,6 +35,21 @@ contextBridge.exposeInMainWorld('arkDesktop', {
     return stop;
   },
 
+  iphone: {
+    devices: () => invoke('iphone-devices'),
+    account: () => invoke('iphone-account'),
+    signIn: (email, password, remember) => invoke('iphone-sign-in', email, password, remember),
+    signOut: () => invoke('iphone-sign-out'),
+    install: (target, password) => invoke('iphone-install', target, password),
+    refresh: () => invoke('iphone-refresh'),
+    forgetApp: (udid, url) => invoke('iphone-forget-app', udid, url),
+    answer: (answer) => ipcRenderer.send('iphone-answer', answer),
+    cancel: () => invoke('iphone-cancel'),
+    devMode: (udid) => invoke('iphone-dev-mode', udid),
+    installDriver: () => invoke('iphone-install-driver'),
+    onEvent: (cb) => listen('iphone-event', cb),
+  },
+
   update: {
     check: () => invoke('update-check'),
     download: () => invoke('update-download'),

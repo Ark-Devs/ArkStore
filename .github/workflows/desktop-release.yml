@@ -78,6 +78,52 @@ jobs:
       - name: Build the web UI
         run: npm run desktop:web
 
+      # The iPhone installer (desktop/sideload, Rust), for each CPU this runner packages, into
+      # desktop/sideload/bin/<os>-<arch>/ where electron-builder.yml picks it up.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/sideload/target
+          key: sideload-${{ runner.os }}-${{ hashFiles('desktop/sideload/Cargo.lock') }}
+
+      - name: Build the iPhone installer
+        shell: bash
+        working-directory: desktop/sideload
+        run: |
+          build() { # <rust target> <electron-builder os-arch> <exe name>
+            rustup target add "$1"
+            cargo build --release --locked --target "$1"
+            mkdir -p "bin/$2"
+            cp "target/$1/release/$3" "bin/$2/"
+          }
+          case "$RUNNER_OS" in
+            Windows) build x86_64-pc-windows-msvc win-x64 ark-sideload.exe ;;
+            macOS)
+              build aarch64-apple-darwin mac-arm64 ark-sideload
+              build x86_64-apple-darwin mac-x64 ark-sideload ;;
+            Linux)
+              sudo apt-get update -q && sudo apt-get install -yq gcc-aarch64-linux-gnu
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+              build x86_64-unknown-linux-gnu linux-x64 ark-sideload
+              build aarch64-unknown-linux-gnu linux-arm64 ark-sideload ;;
+          esac
+          ls -laR bin
+
+      # Proves the installer reaches Apple from a clean machine: a made-up account must be
+      # turned down by Apple itself (not by a network or anisette failure).
+      - name: Check Apple sign-in
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: desktop/sideload
+        run: |
+          out="$(echo '{"email":"arkstore-ci-check@example.com","password":"not-a-password","dataDir":"/tmp/ark-sideload"}' | bin/linux-x64/ark-sideload signin 2>/tmp/sideload.log || true)"
+          echo "$out"
+          if echo "$out" | grep -qiE 'URL Bag|anisette|error sending request'; then
+            tail -40 /tmp/sideload.log; echo "::error::The iPhone installer couldn't reach Apple or the anisette server."; exit 1
+          fi
+
       - name: Package
         working-directory: desktop
         shell: bash

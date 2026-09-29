@@ -20,6 +20,54 @@ export type SelfUpdateStatus =
   | { state: 'ready'; version: string; notes?: string | null }
   | { state: 'error'; message: string; version?: string };
 
+export type IPhoneDevice = {
+  udid: string;
+  connection: 'usb' | 'wifi' | 'other';
+  /** False until "Trust This Computer" is accepted on the iPhone. */
+  trusted: boolean;
+  name: string;
+  ios: string;
+};
+
+export type IPhoneApp = { udid: string; url: string; name: string; iconUrl: string | null; installedAt: string };
+
+/** What ark-sideload reports while it works (see desktop/iphone.cjs). */
+export type IPhoneEvent =
+  | { event: 'progress'; stage: 'download' | 'signin' | 'sign' | 'transfer' | 'done'; percent: number; name?: string }
+  | {
+      event: 'twoFactor';
+      sms: boolean;
+      unknown: boolean;
+      numbers: { id: number; number: string }[];
+      selected: number | null;
+      lastError: string | null;
+    }
+  | { event: 'maxCerts'; certs: { serial: string | null; name: string | null; machine: string | null; expires: string | null }[] }
+  | { event: 'refreshed'; refreshed: number; failed: string[] };
+
+export type IPhoneAnswer =
+  | { action: 'code'; code: string }
+  | { action: 'sms'; id: number }
+  | { action: 'devices' | 'resend' | 'abort' }
+  | { revoke: string[] };
+
+export type IPhoneBridge = {
+  devices: () => Promise<{ driver: boolean; devices: IPhoneDevice[] }>;
+  account: () => Promise<{ email: string | null; remembered: boolean; canRemember: boolean; apps: IPhoneApp[] }>;
+  signIn: (email: string, password: string, remember: boolean) => Promise<{ team: { id: string; name: string | null } | null }>;
+  signOut: () => Promise<void>;
+  /** Password only when it isn't remembered. */
+  install: (target: { udid: string; url: string; name: string; iconUrl?: string | null }, password?: string) => Promise<void>;
+  refresh: () => Promise<{ refreshed: number; failed?: string[]; needsPassword?: boolean }>;
+  forgetApp: (udid: string, url: string) => Promise<void>;
+  answer: (answer: IPhoneAnswer) => void;
+  cancel: () => Promise<void>;
+  devMode: (udid: string) => Promise<{ enabled: boolean }>;
+  /** Windows: installs Apple's device driver (iTunes) or opens the Apple Devices app's page. */
+  installDriver: () => Promise<'installed' | 'opened' | 'linux' | 'none'>;
+  onEvent: (cb: (e: IPhoneEvent) => void) => () => void;
+};
+
 export type DesktopBridge = {
   os: DesktopOS;
   arch: Arch;
@@ -41,6 +89,9 @@ export type DesktopBridge = {
   notify: (title: string, body: string, url?: string) => void;
   /** arkstore:// links (sign-in callbacks) and notification clicks. */
   onOpenUrl: (cb: (url: string) => void) => () => void;
+
+  /** Missing in ArkStore builds from before 1.3. */
+  iphone?: IPhoneBridge;
 
   update: {
     check: () => Promise<void>;

@@ -275,6 +275,18 @@ export default function AccountScreen() {
                 ArkStore shows {OS_LABEL[desktop.os]} apps and picks the installer built for this computer.
               </Txt>
             </View>
+            {desktop.iphone ? (
+              <>
+                <View style={{ height: 24 }} />
+                <SectionHeader title="iPhone" />
+                <View style={{ paddingHorizontal: space.gutter, gap: 10 }}>
+                  <Txt variant="callout" color="text2">
+                    Install iPhone apps from this computer, signed with your own Apple Account, and keep them renewed.
+                  </Txt>
+                  <Button label="Set up iPhone" variant="secondary" onPress={() => router.push('/iphone')} />
+                </View>
+              </>
+            ) : null}
           </>
         ) : Platform.OS === 'android' ? (
           <>

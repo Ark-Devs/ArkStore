@@ -11,9 +11,16 @@ files:
   - main.cjs
   - preload.cjs
   - installer.cjs
+  - iphone.cjs
   - web/**/*
   - build/icon.png
   - package.json
+# The iPhone installer (desktop/sideload, Rust), built per platform and CPU by the release
+# workflow into sideload/bin/<os>-<arch>/ before packaging.
+extraResources:
+  - from: sideload/bin/${os}-${arch}
+    to: sideload
+    filter: ['ark-sideload*']
 protocols:
   - name: ArkStore
     schemes: [arkstore]

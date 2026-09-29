@@ -12,6 +12,7 @@ import { EmptyState, Skeleton } from '@/components/ui/layout';
 import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
+import { desktop } from '@/lib/desktop';
 import { fileSize, shortVersion } from '@/lib/format';
 import { rankAssets } from '@/lib/github/assets';
 import { openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
@@ -84,6 +85,14 @@ export default function IosInstallScreen() {
           </View>
         </View>
         <DotRule />
+
+        {desktop?.iphone ? (
+          <Way
+            title="From this computer"
+            body={`ArkStore signs ${app.name} with your Apple Account and installs it on your iPhone over USB. No other app needed.`}>
+            <Button label="Install on iPhone" variant="accent" onPress={() => router.push(`/iphone?app=${app.id}`)} />
+          </Way>
+        ) : null}
 
         <Way
           title="SideStore"
