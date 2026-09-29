@@ -2,8 +2,8 @@
 // (VS Code's): a column per platform with one big button for the usual download and a small
 // grid of every other format and CPU type. It recognizes the device it's opened on and
 // highlights that platform. Reads ArkStore's newest GitHub release, so it never needs editing
-// for a new version. iPhones and iPads get a column too: ArkStore's iOS apps install through
-// SideStore, set up with the guide below the columns.
+// for a new version. iPhones and iPads get a column too: ArkStore on a computer sets up ArkStore
+// on the iPhone (or SideStore does), with the guide below the columns.
 import { AndroidLogo } from "phosphor-react-native/src/icons/AndroidLogo";
 import { AppleLogo } from "phosphor-react-native/src/icons/AppleLogo";
 import { ArrowSquareOut } from "phosphor-react-native/src/icons/ArrowSquareOut";
@@ -350,7 +350,7 @@ function PlatformColumn({
   );
 }
 
-/** iPhone and iPad: no ArkStore app to download; SideStore installs ArkStore's iOS apps. */
+/** iPhone and iPad: ArkStore on a computer installs ArkStore there (see the guide below). */
 function IosColumn({
   device,
   onGuide,
@@ -412,18 +412,18 @@ function IosColumn({
             color={mine ? "onAccent" : "onInvert"}
             style={{ opacity: 0.8 }}
           >
-            iOS 15 or later · with SideStore
+            iOS 15 or later · set up from a computer
           </Txt>
         </View>
       </Tap>
       <Txt variant="callout" color="text2" style={{ alignSelf: "stretch" }}>
-        iOS only installs apps from the App Store, so ArkStore&apos;s iOS apps
-        install through SideStore with your free Apple Account. One setup with a
-        computer, then everything happens on the phone.
+        Get ArkStore for your computer, plug in your iPhone and click Install.
+        After that ArkStore on the iPhone installs and renews apps by itself,
+        with your free Apple Account.
       </Txt>
       <Txt variant="caption" color="text3" style={{ alignSelf: "stretch" }}>
-        Also works with AltStore, TrollStore and Feather. The step-by-step guide
-        is below.
+        SideStore, AltStore, TrollStore and Feather work too. Step by step
+        below.
       </Txt>
     </View>
   );
@@ -530,8 +530,7 @@ export default function DownloadScreen() {
                 style={{ maxWidth: 560 }}
               >
                 Apps that live on GitHub, installed and kept up to date. Free
-                and open source, on Windows, macOS, Linux and Android, and
-                iPhone apps through SideStore.
+                and open source, on Windows, macOS, Linux, Android and iPhone.
               </Txt>
               {release ? (
                 <Txt variant="label" color="text3">
@@ -545,8 +544,8 @@ export default function DownloadScreen() {
                   align="center"
                   style={{ marginTop: 6 }}
                 >
-                  On iPhone or iPad? Apps install through SideStore: see the
-                  guide below.
+                  On iPhone or iPad? Set it up once from a computer: the
+                  guide is below.
                 </Txt>
               ) : null}
             </View>
