@@ -28,12 +28,17 @@ if (Platform.OS !== 'web') {
 }
 
 const FRIENDLY: Record<string, string> = {
-  sign_in_required: 'Sign in with GitHub first.',
+  sign_in_required: 'Sign in first.',
+  google_login_disabled: "Google sign-in isn't switched on for this ArkStore server yet (Supabase > Authentication > Providers > Google).",
+  apple_login_disabled: "Apple sign-in isn't switched on for this ArkStore server yet (Supabase > Authentication > Providers > Apple).",
+  'Manual linking is disabled':
+    "Linking accounts isn't switched on for this ArkStore server yet (Supabase > Authentication > Sign In / Providers > Allow manual linking).",
+  identity_already_exists: 'That account is already linked to a different ArkStore account. Sign in with it instead.',
   github_login_disabled:
     "GitHub sign-in isn't switched on for this ArkStore server yet. In Supabase, enable the GitHub provider under Authentication > Providers.",
   'provider is not enabled':
     "GitHub sign-in isn't switched on for this ArkStore server yet. In Supabase, enable the GitHub provider under Authentication > Providers.",
-  github_account_required: 'Your ArkStore account needs to be linked to GitHub.',
+  github_account_required: 'Connect your GitHub account to publish apps (Account > Connect GitHub).',
   invalid_repo: "That doesn't look like a GitHub repo link.",
   invalid_name: 'Give your app a name (up to 40 characters).',
   invalid_category: 'Pick a category.',

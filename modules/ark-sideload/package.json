@@ -1,0 +1,8 @@
+{
+  "name": "ark-sideload",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ArkStore on iPhone: install and renew apps with the person's Apple Account, on the iPhone itself (sideload/, Rust).",
+  "main": "index.ts",
+  "license": "MIT"
+}

@@ -55,6 +55,24 @@ jobs:
       - name: Test
         run: npm test
 
+      # ArkStore installs and renews apps on the iPhone itself with the installer in sideload/
+      # (Rust), linked into the app by modules/ark-sideload.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sideload/target
+          key: sideload-ios-${{ hashFiles('sideload/Cargo.lock') }}
+
+      - name: Build the on-iPhone installer
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: '15.1'
+        run: |
+          rustup target add aarch64-apple-ios
+          npm run ios:sideload
+          ls -la modules/ark-sideload/ios/lib
+
       - name: Generate the iOS project
         run: npx expo prebuild --platform ios --clean --no-install
 

@@ -1,6 +1,7 @@
 // The iPhone and iPad guide on /download: setting up SideStore once (the only step that needs a
 // computer), adding ArkStore's source, keeping apps signed, and the other ways to install.
 // The setup steps follow SideStore's own docs (docs.sidestore.io/docs/installation).
+import { router } from 'expo-router';
 import { ArrowSquareOut } from 'phosphor-react-native/src/icons/ArrowSquareOut';
 import { CaretDown } from 'phosphor-react-native/src/icons/CaretDown';
 import { Warning } from 'phosphor-react-native/src/icons/Warning';
@@ -171,6 +172,26 @@ function EasySetup() {
   );
 }
 
+/** The simplest way, first: ArkStore on a computer installs and renews iPhone apps itself. */
+function ComputerWay() {
+  const c = useColors();
+  return (
+    <View style={{ gap: 12, padding: 18, borderRadius: radius.card, backgroundColor: c.surface, borderWidth: 1, borderColor: c.accent }}>
+      <Txt variant="headline">The easy way: ArkStore on your computer</Txt>
+      <P>
+        ArkStore for Windows, Mac and Linux installs iPhone apps itself. Plug in the iPhone, sign in with your free Apple
+        Account, and click Install. It installs ArkStore on the iPhone and renews your apps every few days while the iPhone is
+        connected. Nothing else to install (on Windows, ArkStore adds Apple&apos;s iPhone driver for you).
+      </P>
+      {desktop?.iphone ? (
+        <Button label="Set up iPhone" variant="accent" onPress={() => router.push('/iphone')} />
+      ) : (
+        <P>Download ArkStore for your computer from this page, open it, and go to Account › Set up iPhone.</P>
+      )}
+    </View>
+  );
+}
+
 export function IosGuide() {
   const c = useColors();
   return (
@@ -187,7 +208,16 @@ export function IosGuide() {
         </Txt>
       </View>
 
-      <Section title="1. What you need" subtitle="Once, for the setup" open>
+      <ComputerWay />
+
+      <View style={{ gap: 4, paddingHorizontal: 4, paddingTop: 8 }}>
+        <Txt variant="headline">Or: SideStore, without a computer after setup</Txt>
+        <Txt variant="callout" color="text2">
+          SideStore renews apps on the iPhone itself, so after this setup you never need a computer.
+        </Txt>
+      </View>
+
+      <Section title="1. What you need" subtitle="Once, for the setup">
         <Bullets
           items={[
             'An iPhone or iPad on iOS or iPadOS 15 or later, with a passcode set.',
@@ -198,7 +228,7 @@ export function IosGuide() {
         />
       </Section>
 
-      <Section title="2. Set up SideStore" subtitle="The only part that needs a computer" open>
+      <Section title="2. Set up SideStore" subtitle="The only part that needs a computer">
         <EasySetup />
         <Step n={1} title="On your iPhone: install LocalDevVPN">
           <P>

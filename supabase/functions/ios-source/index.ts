@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_
   auth: { persistSession: false, autoRefreshToken: false },
 });
 const SOURCE_URL = `${SUPABASE_URL}/functions/v1/ios-source`;
-const WEBSITE = 'https://ark-devs.github.io/ArkStore/download/';
+const WEBSITE = 'https://store.arkdevs.xyz/download/';
 const COLUMNS =
   'id,repo_full_name,name,subtitle,description,category,icon_url,screenshots,developer_login,latest_version,latest_published_at,latest_release_notes,featured,assets';
 const RETRY_FAILED_AFTER = 7 * 24 * 60 * 60 * 1000;

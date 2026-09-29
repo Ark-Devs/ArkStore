@@ -21,15 +21,15 @@ import { Chip, SectionHeader } from '@/components/ui/layout';
 import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
-import { showAlert } from '@/lib/alert';
-import { githubProfile, signInWithGitHub, signOut, useAuth } from '@/lib/auth';
+import { githubProfile, hasGitHub, linkedProviders, PROVIDER_LABEL, signOut, useAuth, useProviders } from '@/lib/auth';
+import { LinkButton, SignInButtons } from '@/components/store/sign-in-buttons';
 import { desktop } from '@/lib/desktop';
+import { iphoneLocal } from '@/lib/ios-sideload';
 import { abiLabel, deviceAbis } from '@/lib/device';
 import { archLabel, OS_LABEL } from '@/lib/github/assets';
 import { currentArkStoreVersion } from '@/lib/self-update';
 import { useInstalled } from '@/lib/stores/installed';
 import { usePrefs, type InstallerCleanup, type ThemePref } from '@/lib/stores/prefs';
-import { friendlyError } from '@/lib/supabase';
 import { askForNotifications, notificationsAllowed } from '@/lib/updates';
 import { radius, space, useColors } from '@/theme';
 
@@ -67,6 +67,8 @@ export default function AccountScreen() {
   const c = useColors();
   const session = useAuth((s) => s.session);
   const profile = githubProfile(session);
+  const linked = linkedProviders(session);
+  const enabledProviders = useProviders((s) => s.enabled);
   const theme = usePrefs((s) => s.theme);
   const setTheme = usePrefs((s) => s.setTheme);
   const notify = usePrefs((s) => s.notifyUpdates);
@@ -75,7 +77,6 @@ export default function AccountScreen() {
   const cleanup = usePrefs((s) => s.installerCleanup);
   const setCleanup = usePrefs((s) => s.setInstallerCleanup);
   const [allowed, setAllowed] = useState(false);
-  const [busy, setBusy] = useState(false);
   const abis = deviceAbis();
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function AccountScreen() {
                 {profile ? profile.name || profile.login : 'Browsing as guest'}
               </Txt>
               <Txt variant="callout" color="text2">
-                {profile ? `@${profile.login}` : "You don't need an account to install apps."}
+                {profile ? (profile.login ? `@${profile.login}` : profile.email) : "You don't need an account to install apps."}
               </Txt>
             </View>
           </View>
@@ -128,28 +129,27 @@ export default function AccountScreen() {
                 }}
               />
             ) : (
-              <Button
-                label="Sign in with GitHub"
-                size="sm"
-                loading={busy}
-                icon={<GithubLogo size={14} color={c.onInvert} weight="fill" />}
-                onPress={async () => {
-                  setBusy(true);
-                  try {
-                    await signInWithGitHub();
-                  } catch (e) {
-                    showAlert("Couldn't sign in", friendlyError(e));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
+              <SignInButtons size="sm" />
             )}
           </View>
         </View>
 
         {session ? (
           <>
+            <SectionHeader title="Sign-in methods" />
+            <View style={{ paddingHorizontal: space.gutter, gap: 10, marginBottom: 24 }}>
+              <Txt variant="callout" color="text2">
+                {linked.map((p) => PROVIDER_LABEL[p]).join(', ') || 'None'}
+                {hasGitHub(session) ? '' : '. Connect GitHub to publish apps.'}
+              </Txt>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {(['github', 'google', 'apple'] as const)
+                  .filter((p) => !linked.includes(p) && (p === 'github' || enabledProviders[p]))
+                  .map((p) => (
+                    <LinkButton key={p} provider={p} variant={p === 'github' ? 'primary' : 'secondary'} />
+                  ))}
+              </View>
+            </View>
             <SectionHeader title="Signed-in devices" />
             <DeviceList uid={session.user.id} />
             <View style={{ height: 24 }} />
@@ -275,6 +275,18 @@ export default function AccountScreen() {
                 ArkStore shows {OS_LABEL[desktop.os]} apps and picks the installer built for this computer.
               </Txt>
             </View>
+            {desktop.iphone ? (
+              <>
+                <View style={{ height: 24 }} />
+                <SectionHeader title="iPhone" />
+                <View style={{ paddingHorizontal: space.gutter, gap: 10 }}>
+                  <Txt variant="callout" color="text2">
+                    Install iPhone apps from this computer, signed with your own Apple Account, and keep them renewed.
+                  </Txt>
+                  <Button label="Set up iPhone" variant="secondary" onPress={() => router.push('/iphone')} />
+                </View>
+              </>
+            ) : null}
           </>
         ) : Platform.OS === 'android' ? (
           <>
@@ -292,6 +304,19 @@ export default function AccountScreen() {
               <Txt variant="caption" color="text3" style={{ marginTop: 10 }}>
                 ArkStore uses this to download the smallest build that runs on your phone.
               </Txt>
+            </View>
+          </>
+        ) : null}
+
+        {iphoneLocal ? (
+          <>
+            <View style={{ height: 24 }} />
+            <SectionHeader title="iPhone apps" />
+            <View style={{ paddingHorizontal: space.gutter, gap: 10 }}>
+              <Txt variant="callout" color="text2">
+                Apps ArkStore installed with your Apple Account, and when each needs renewing.
+              </Txt>
+              <Button label="Your apps and renewing" variant="secondary" onPress={() => router.push('/iphone')} />
             </View>
           </>
         ) : null}

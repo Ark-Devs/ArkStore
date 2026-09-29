@@ -33,7 +33,7 @@ export const IOS_SHORTCUT = {
 export const trollStoreInstallLink = (ipaUrl: string) => `apple-magnifier://install?url=${enc(ipaUrl)}`;
 
 /** Scripts that do the computer part of SideStore's setup (tools/ios-setup, served with the download page). */
-const SETUP_BASE = 'https://ark-devs.github.io/ArkStore/ios-setup';
+const SETUP_BASE = 'https://store.arkdevs.xyz/ios-setup';
 export const IOS_SETUP = {
   windowsBat: `${SETUP_BASE}/ArkStore-iPhone-Setup.bat`,
   windowsCommand: `irm ${SETUP_BASE}/setup-windows.ps1 | iex`,
@@ -49,6 +49,8 @@ export const IOS_LINKS = {
   feather: 'https://github.com/khcrysalis/Feather',
   appleDeveloper: 'https://developer.apple.com/programs/',
   refreshShortcutIssue: 'https://github.com/SideStore/SideStore/issues/822',
+  /** The App Store, searching for LocalDevVPN (opens the App Store app on the iPhone). */
+  localDevVpn: 'itms-apps://search.itunes.apple.com/WebObjects/MZSearch.woa/wa/search?media=software&term=LocalDevVPN',
 };
 
 /** Opens a deep link into another app; resolves false when that app isn't installed. */

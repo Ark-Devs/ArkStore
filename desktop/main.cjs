@@ -10,6 +10,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const installer = require('./installer.cjs');
+const iphone = require('./iphone.cjs');
 
 const WEB_DIR = path.join(__dirname, 'web');
 const APP_ORIGIN = 'app://arkstore';
@@ -160,6 +161,8 @@ function machine() {
     appVersion: app.getVersion(),
   };
 }
+
+iphone.register(() => win);
 
 ipcMain.on('machine', (event) => {
   event.returnValue = machine();

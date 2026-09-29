@@ -55,62 +55,80 @@ supabase.auth.onAuthStateChange((event, session) => {
 // so their repos show up in Studio.
 const SCOPES = 'read:user read:org';
 
+/** Ways to sign in. GitHub is also what publishing needs; Google and Apple are for everyone else. */
+export type AuthProvider = 'github' | 'google' | 'apple';
+export const PROVIDER_LABEL: Record<AuthProvider, string> = { github: 'GitHub', google: 'Google', apple: 'Apple' };
+
 /**
- * Whether the Supabase project has the GitHub provider switched on. Checked up front so
- * people get a readable message instead of Supabase's raw "provider is not enabled" page.
+ * Which providers the Supabase project has switched on (Authentication > Providers). Buttons
+ * for the others stay hidden, so turning one on in Supabase is all it takes to offer it.
  */
-async function githubSignInEnabled(): Promise<boolean | null> {
+async function enabledProviders(): Promise<Record<AuthProvider, boolean> | null> {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
-  if (!url || !key) return false;
+  if (!url || !key) return { github: false, google: false, apple: false };
   try {
     const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
     if (!res.ok) return null;
     const settings = (await res.json()) as { external?: Record<string, boolean> };
-    return Boolean(settings.external?.github);
+    const e = settings.external ?? {};
+    return { github: Boolean(e.github), google: Boolean(e.google), apple: Boolean(e.apple) };
   } catch {
     return null; // Offline or blocked: let the sign-in attempt report the real problem.
   }
 }
 
-export async function signInWithGitHub(): Promise<'signed-in' | 'cancelled' | 'redirecting'> {
-  if ((await githubSignInEnabled()) === false) throw new Error('github_login_disabled');
+export const useProviders = create<{ enabled: Record<AuthProvider, boolean> }>()(() => ({
+  enabled: { github: true, google: false, apple: false },
+}));
+enabledProviders().then((e) => e && useProviders.setState({ enabled: e }));
 
-  if (desktop) {
-    // Sign in in the person's own browser (where they're likely signed in to GitHub already);
-    // GitHub sends them back to arkstore://auth-callback, which the desktop app hands to
-    // completeSignIn() below.
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: { redirectTo: 'arkstore://auth-callback', skipBrowserRedirect: true, scopes: SCOPES },
-    });
-    if (error) throw error;
-    await desktop.openExternal(data.url);
-    return 'redirecting';
-  }
+/** Where the provider sends people back to: the app, the desktop app, or this website. */
+function redirectTarget(): string {
+  if (desktop) return 'arkstore://auth-callback';
+  // Include the site's base path (e.g. /ArkStore on GitHub Pages).
+  if (Platform.OS === 'web') return `${window.location.origin}${Constants.expoConfig?.experiments?.baseUrl ?? ''}/auth-callback`;
+  return Linking.createURL('auth-callback');
+}
 
-  if (Platform.OS === 'web') {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      // Include the site's base path (e.g. /ArkStore on GitHub Pages).
-      options: { redirectTo: `${window.location.origin}${Constants.expoConfig?.experiments?.baseUrl ?? ''}/auth-callback`, scopes: SCOPES },
-    });
-    if (error) throw error;
-    return 'redirecting';
-  }
-
-  const redirectTo = Linking.createURL('auth-callback');
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'github',
-    options: { redirectTo, skipBrowserRedirect: true, scopes: SCOPES },
-  });
+/**
+ * Runs an OAuth round trip: sign-in, or (link) adding GitHub / Google / Apple to the account
+ * someone is signed in to. Desktop and web leave for the browser and come back through
+ * completeSignIn(); phones use an in-app browser session.
+ */
+async function oauth(provider: AuthProvider, link: boolean): Promise<'signed-in' | 'cancelled' | 'redirecting'> {
+  const enabled = await enabledProviders();
+  if (enabled && !enabled[provider]) throw new Error(`${provider}_login_disabled`);
+  const redirectTo = redirectTarget();
+  const options = {
+    redirectTo,
+    skipBrowserRedirect: Platform.OS !== 'web' || Boolean(desktop),
+    ...(provider === 'github' ? { scopes: SCOPES } : {}),
+  };
+  const { data, error } = link
+    ? await supabase.auth.linkIdentity({ provider, options })
+    : await supabase.auth.signInWithOAuth({ provider, options });
   if (error) throw error;
-
-  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (link) linking = true;
+  if (desktop) {
+    await desktop.openExternal(data.url!);
+    return 'redirecting';
+  }
+  if (Platform.OS === 'web') return 'redirecting';
+  const result = await WebBrowser.openAuthSessionAsync(data.url!, redirectTo);
   if (result.type !== 'success') return 'cancelled';
   await completeSignIn(result.url);
   return 'signed-in';
 }
+
+export const signIn = (provider: AuthProvider) => oauth(provider, false);
+export const signInWithGitHub = () => oauth('github', false);
+/** Adds GitHub (needed to publish) or another provider to the signed-in account. */
+export const linkProvider = (provider: AuthProvider) => oauth(provider, true);
+
+// A link round trip ends with a code like a sign-in does, but someone is already signed in:
+// the code still has to be exchanged, for the new identity and GitHub's token.
+let linking = false;
 
 // A redirect can reach us twice on Android (the auth browser session and the deep-link
 // handler both see it). A code can only be exchanged once, so share one exchange per code.
@@ -127,7 +145,8 @@ export function completeSignIn(url: string): Promise<void> {
   let pending = exchanges.get(code);
   if (!pending) {
     pending = (async () => {
-      if ((await supabase.auth.getSession()).data.session) return;
+      if (!linking && (await supabase.auth.getSession()).data.session) return;
+      linking = false;
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) throw error;
       if (data.session?.provider_token) await saveToken(data.session.provider_token);
@@ -150,13 +169,31 @@ export async function signOut() {
   await clearToken();
 }
 
+/** Which providers this account can sign in with. */
+export function linkedProviders(session: Session | null): AuthProvider[] {
+  return (session?.user.identities ?? []).map((i) => i.provider).filter((p): p is AuthProvider => p in PROVIDER_LABEL);
+}
+
+/** Publishing lists repos under a GitHub account, so it needs GitHub linked (checked again by the database). */
+export const hasGitHub = (session: Session | null) => linkedProviders(session).includes('github');
+
+/**
+ * The profile to show, from whichever providers are linked: GitHub's username when there is
+ * one (apps are published under it), otherwise the name and photo from Google or Apple.
+ * Supabase keeps all of it on the account (auth.users), so it survives signing in elsewhere.
+ */
 export function githubProfile(session: Session | null) {
   if (!session) return null;
   const meta = session.user.user_metadata ?? {};
-  const identity = session.user.identities?.find((i) => i.provider === 'github')?.identity_data ?? {};
+  const ids = session.user.identities ?? [];
+  const github = ids.find((i) => i.provider === 'github')?.identity_data ?? {};
+  const other = ids.find((i) => i.provider !== 'github')?.identity_data ?? {};
+  const email = (session.user.email ?? meta.email ?? other.email ?? '') as string;
   return {
-    login: (identity.user_name ?? meta.user_name ?? meta.preferred_username ?? '') as string,
-    name: (meta.full_name ?? meta.name ?? '') as string,
-    avatar: (meta.avatar_url ?? identity.avatar_url ?? null) as string | null,
+    /** GitHub username, or '' when GitHub isn't linked. */
+    login: (github.user_name ?? github.preferred_username ?? '') as string,
+    name: (meta.full_name ?? meta.name ?? other.full_name ?? other.name ?? github.full_name ?? '') as string,
+    email,
+    avatar: (meta.avatar_url ?? meta.picture ?? github.avatar_url ?? other.avatar_url ?? other.picture ?? null) as string | null,
   };
 }
