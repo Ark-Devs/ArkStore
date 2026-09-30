@@ -24,6 +24,7 @@ import { repoUrl } from '@/lib/github/repo';
 import { canOpen, cancelDownload, installApp, installFromFile, isPackageInstalled, openApp, openInstalledApp } from '@/lib/install';
 import { hasUpdate, useInstalled } from '@/lib/stores/installed';
 import { installerStatus, isNeeded, useInstallers } from '@/lib/stores/installers';
+import { iphoneLocal } from '@/lib/ios-sideload';
 import { useOnPhoneCheck } from '@/lib/stores/on-phone';
 import { useTasks } from '@/lib/stores/tasks';
 import { friendlyError } from '@/lib/supabase';
@@ -181,8 +182,9 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
     label = OS_LABEL[app.platforms[0]].toUpperCase();
     onPress = () => router.push(`/app/${app.id}`);
   } else if (pick?.os === 'ios') {
-    // iOS can't install from here: the app's iPhone page offers SideStore, AltStore and TrollStore.
-    onPress = () => router.push(`/app/${app.id}/ios`);
+    // ArkStore on an iPhone installs it itself (/iphone); anywhere else the app's iPhone page
+    // offers the ways that can (ArkStore on a computer, SideStore, TrollStore, the IPA).
+    onPress = () => router.push(iphoneLocal ? `/iphone?app=${app.id}` : `/app/${app.id}/ios`);
   } else if (!hasRelease) {
     label = 'VIEW';
     onPress = () => Linking.openURL(repoUrl(app.repo_full_name));

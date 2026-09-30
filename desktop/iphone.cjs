@@ -93,7 +93,8 @@ function run(command, request, { onEvent = () => {}, background = false } = {}) 
     child.stderr.on('data', (chunk) => {
       stderr = (stderr + chunk).slice(-20000);
     });
-    child.on('error', (e) => reject(e));
+    // The installer couldn't start at all (missing, or blocked by antivirus).
+    child.on('error', (e) => reject(new Error(`Couldn't start ArkStore's iPhone installer.${DETAILS}${e.message}`)));
     child.on('close', (code) => {
       if (job?.id === id) job = null;
       if (result && code === 0) return resolve(result);
@@ -102,24 +103,38 @@ function run(command, request, { onEvent = () => {}, background = false } = {}) 
         fs.mkdirSync(dataDir(), { recursive: true });
         fs.writeFileSync(log, `${command} failed (exit ${code})\n${error || ''}\n\n${stderr}`);
       } catch {}
-      reject(new Error(friendly(error || `The iPhone installer stopped (exit ${code}).`)));
+      // Crashed before it could report an error: its last log lines are the best explanation.
+      const tail = stderr.replace(/\x1b\[[0-9;]*m/g, '').trim().split('\n').slice(-8).join('\n');
+      const detail = error || tail || `The iPhone installer stopped (exit ${code}).`;
+      reject(new Error(`${friendly(error || `The iPhone installer stopped (exit ${code}).`)}${DETAILS}${detail}`));
     });
     child.stdin.write(`${JSON.stringify(request)}\n`);
   });
 }
 
+/** Separates the sentence shown in the app from the full error behind "Show details". */
+const DETAILS = '\n\n--- details ---\n';
+
 /** Apple's and the device's errors, as something a person can act on. */
 function friendly(message) {
   const m = String(message);
   const last = m.split('\n').filter(Boolean).pop() || m;
-  if (/-20101|incorrect|invalid.*(password|credentials)/i.test(m)) return 'Wrong Apple Account email or password.';
-  if (/-22421|-22411|too many/i.test(m)) return 'Apple is limiting sign-ins for this account right now. Wait an hour and try again.';
-  if (/maximum.*app id|app id limit|-7011/i.test(m)) return 'Your free Apple Account can register 10 new apps a week, and that limit is reached. It resets within 7 days; apps you already have can still be refreshed.';
-  if (/3 apps|maximum number of (installed )?apps|ApplicationVerificationFailed.*limit/i.test(m)) return 'A free Apple Account can have 3 apps signed this way on an iPhone. Delete one from the iPhone and try again.';
-  if (/PasswordProtected|locked/i.test(m)) return 'Unlock the iPhone and try again.';
-  if (/pair|trust/i.test(m)) return 'Unlock the iPhone and tap Trust when it asks about this computer, then try again.';
-  if (/Cancelled/.test(m)) return 'Cancelled.';
-  return last;
+  const hint = (() => {
+    if (/-20101|incorrect|invalid.*(password|credentials)/i.test(m)) return 'Wrong Apple Account email or password.';
+    if (/-20209|-20283|account.{0,40}locked|locked.{0,40}account|disabled for security/i.test(m))
+      return 'Apple has locked this Apple Account for security. Unlock it at iforgot.apple.com, then sign in again.';
+    if (/-22421|-22411|too many/i.test(m)) return 'Apple is limiting sign-ins for this account right now. Wait an hour and try again.';
+    if (/anisette/i.test(m)) return "Couldn't reach Apple's sign-in helper servers. Check the internet connection and try again.";
+    if (/maximum.*app id|app id limit|-7011/i.test(m)) return 'Your free Apple Account can register 10 new apps a week, and that limit is reached. It resets within 7 days; apps you already have can still be refreshed.';
+    if (/3 apps|maximum number of (installed )?apps|ApplicationVerificationFailed.*limit/i.test(m)) return 'A free Apple Account can have 3 apps signed this way on an iPhone. Delete one from the iPhone and try again.';
+    // The iPhone itself: its lock screen, or "Trust This Computer" not accepted yet.
+    if (/PasswordProtected|device is locked|DeviceLocked/i.test(m)) return 'Unlock the iPhone and try again.';
+    if (/InvalidHostID|PairingDialogResponsePending|UserDeniedPairing|not paired/i.test(m)) return 'Unlock the iPhone and tap Trust when it asks about this computer, then try again.';
+    if (/Cancelled/.test(m)) return 'Cancelled.';
+    return null;
+  })();
+  // Apple's own words stay visible, so an unexpected error can still be diagnosed.
+  return hint && hint !== 'Cancelled.' && last !== hint ? `${hint} (${last})` : hint || last;
 }
 
 async function fetchIpa(url) {
@@ -210,7 +225,7 @@ async function refreshDue({ force = false } = {}) {
       await installApp(a, { email: state.email, password, background: !force });
       refreshed++;
     } catch (e) {
-      failed.push(`${a.name}: ${e.message}`);
+      failed.push(`${a.name}: ${e.message.split(DETAILS)[0]}`);
     }
   }
   if (failed.length && Notification.isSupported()) {
@@ -249,7 +264,7 @@ function installDriver() {
 function register(windowGetter) {
   getWindow = windowGetter;
 
-  ipcMain.handle('iphone-devices', () => run('devices', {}).then((r) => ({ driver: r.driver, devices: r.devices })));
+  ipcMain.handle('iphone-devices', () => run('devices', {}).then((r) => ({ driver: r.driver, devices: r.devices, message: r.error || undefined })));
 
   ipcMain.handle('iphone-account', () => {
     const s = readState();

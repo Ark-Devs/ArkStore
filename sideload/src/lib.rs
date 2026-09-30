@@ -213,7 +213,14 @@ async fn devices(io: &Io) -> Result<(), Report> {
             return Ok(());
         }
     };
-    let list = mux.get_devices().await.unwrap_or_default();
+    let list = match mux.get_devices().await {
+        Ok(list) => list,
+        Err(e) => {
+            // Shown on the setup screen: "no iPhone" and "couldn't list iPhones" need different fixes.
+            io.emit(json!({ "event": "devices", "devices": [], "driver": true, "error": format!("Apple's device service answered with an error: {e}") }));
+            return Ok(());
+        }
+    };
     let mut out = Vec::new();
     for dev in list {
         let connection = match dev.connection_type {
