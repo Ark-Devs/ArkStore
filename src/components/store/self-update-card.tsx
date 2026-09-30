@@ -7,9 +7,11 @@ import { DotGrid } from '@/components/ui/dots';
 import { Txt } from '@/components/ui/text';
 import { showAlert } from '@/lib/alert';
 import { desktop } from '@/lib/desktop';
+import { iphoneLocal, updateArkStoreOnIphone, useIphoneSelfUpdate } from '@/lib/ios-sideload';
 import { plainNotes } from '@/lib/format';
 import {
   androidUpdateAvailable,
+  iphoneUpdateAvailable,
   updateArkStoreOnAndroid,
   useAndroidSelfUpdate,
   useDesktopUpdate,
@@ -99,8 +101,38 @@ function AndroidCard() {
   );
 }
 
-/** "ArkStore X is available": shown at the top of Updates on the desktop app and on Android. */
+function IphoneCard() {
+  const latest = useLatestArkStore(Boolean(iphoneLocal));
+  const task = useIphoneSelfUpdate();
+  const release = latest.data;
+  if (!release || !iphoneUpdateAvailable(release)) return null;
+  const busy = task.status === 'updating';
+  const body = busy
+    ? task.stage === 'transfer'
+      ? 'Installing. ArkStore closes and opens on the new version.'
+      : `Updating, ${task.percent}%`
+    : task.status === 'error'
+      ? task.error ?? "Couldn't update. Connect LocalDevVPN and try again."
+      : plainNotes(release.notes) || 'Updates right here with LocalDevVPN connected. ArkStore closes and reopens on the new version.';
+  return (
+    <Shell
+      title={`ArkStore ${release.version} is available`}
+      body={body}
+      action={
+        <Button
+          label="Update ArkStore"
+          size="sm"
+          loading={busy}
+          onPress={() => updateArkStoreOnIphone(release).catch((e) => showAlert("Couldn't update ArkStore", String((e as Error).message)))}
+        />
+      }
+    />
+  );
+}
+
+/** "ArkStore X is available": shown at the top of Updates on the desktop app, Android and iPhone. */
 export function SelfUpdateCard() {
   if (desktop) return <DesktopCard />;
+  if (iphoneLocal) return <IphoneCard />;
   return <AndroidCard />;
 }
