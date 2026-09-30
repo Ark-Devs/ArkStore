@@ -6,6 +6,7 @@ import { Tap } from '@/components/ui/tap';
 import { Txt } from '@/components/ui/text';
 import { showAlert } from '@/lib/alert';
 import { desktop } from '@/lib/desktop';
+import { updateArkStoreOnIphone, useIphoneSelfUpdate } from '@/lib/ios-sideload';
 import { updateArkStoreOnAndroid, useAndroidSelfUpdate, useArkStoreUpdate } from '@/lib/self-update';
 import { usePrefs } from '@/lib/stores/prefs';
 import { friendlyError } from '@/lib/supabase';
@@ -14,15 +15,17 @@ import { radius, useColors } from '@/theme';
 /**
  * "ArkStore 1.3.0 is available", floating above the tab bar on every screen as soon as a new
  * ArkStore release is on GitHub. The button does whatever this platform needs: install the
- * APK, restart into the downloaded update, or open the download page.
+ * APK, restart into the downloaded update, install the new iPhone build on the iPhone itself, or
+ * open the download page.
  */
 export function UpdateBanner({ style }: { style?: StyleProp<ViewStyle> }) {
   const c = useColors();
   const update = useArkStoreUpdate();
   const task = useAndroidSelfUpdate();
+  const ios = useIphoneSelfUpdate();
   const hidden = usePrefs((s) => s.hiddenSelfUpdate);
   const hide = usePrefs((s) => s.hideSelfUpdate);
-  if (!update || (hidden === update.version && update.kind !== 'restart')) return null;
+  if (!update || (hidden === update.version && update.kind !== 'restart' && !(update.kind === 'iphone' && ios.status === 'updating'))) return null;
 
   let body = 'Tap Update to get it.';
   let action: { label: string; run: () => void } | null = null;
@@ -54,6 +57,23 @@ export function UpdateBanner({ style }: { style?: StyleProp<ViewStyle> }) {
     case 'download':
       body = 'Download the new version to update.';
       action = { label: 'Get it', run: () => router.push('/download') };
+      break;
+    case 'iphone':
+      body =
+        ios.status === 'updating'
+          ? ios.stage === 'transfer'
+            ? 'Installing. ArkStore closes and opens on the new version.'
+            : `Updating, ${ios.percent}%`
+          : ios.status === 'error'
+            ? ios.error ?? "Couldn't update. Connect LocalDevVPN and try again."
+            : 'Updates here, with LocalDevVPN connected. ArkStore closes and reopens.';
+      action =
+        ios.status === 'updating'
+          ? null
+          : {
+              label: 'Update',
+              run: () => updateArkStoreOnIphone(update.release).catch((e) => showAlert("Couldn't update ArkStore", String((e as Error).message))),
+            };
       break;
   }
 

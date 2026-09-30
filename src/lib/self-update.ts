@@ -16,6 +16,8 @@ import { deviceAbis } from './device';
 import { chooseApkForDevice } from './github/apk';
 import { installableAssets, type ReleaseFile } from './github/assets';
 import { launchInstaller } from './install';
+// ios-sideload imports this file too; both only use each other inside functions.
+import { iphoneIpaOf, iphoneLocal } from './ios-sideload';
 
 /** Where ArkStore's own releases live. Forks can point this at their repo. */
 export const ARKSTORE_REPO = process.env.EXPO_PUBLIC_ARKSTORE_REPO || 'Ark-Devs/ArkStore';
@@ -147,13 +149,15 @@ export type ArkStoreUpdate =
   /** Desktop: downloaded, a restart finishes the update. */
   | { kind: 'restart'; version: string; notes: string }
   /** Desktop builds that can't replace themselves (unsigned Mac, MSI, manual installs): get it from the download page. */
-  | { kind: 'download'; version: string; notes: string };
+  | { kind: 'download'; version: string; notes: string }
+  /** iPhone set up with ArkStore: it signs and installs the new version itself (src/lib/ios-sideload.ts). */
+  | { kind: 'iphone'; version: string; notes: string; release: ArkStoreRelease };
 
 const HOUR = 60 * 60 * 1000;
 
 /** Whether a newer ArkStore release is out for this device. Rechecks GitHub every hour. */
 export function useArkStoreUpdate(): ArkStoreUpdate | null {
-  const inApp = Boolean(desktop) || Platform.OS === 'android';
+  const inApp = Boolean(desktop) || Platform.OS === 'android' || Boolean(iphoneLocal);
   const latest = useQuery({
     queryKey: ['arkstore-latest'],
     queryFn: fetchLatestArkStore,
@@ -176,7 +180,14 @@ export function useArkStoreUpdate(): ArkStoreUpdate | null {
     return null;
   }
   if (androidUpdateAvailable(release)) return { kind: 'install', version: release!.version, notes: release!.notes, release: release! };
+  if (iphoneUpdateAvailable(release)) return { kind: 'iphone', version: release!.version, notes: release!.notes, release: release! };
   return null;
+}
+
+/** Whether ArkStore on this iPhone can update itself to `release` (set up with a computer, newer, has an IPA). */
+export function iphoneUpdateAvailable(release: ArkStoreRelease | null | undefined): boolean {
+  const current = Application.nativeApplicationVersion;
+  return Boolean(Platform.OS === 'ios' && release && current && isNewerVersion(release.version, current) && iphoneIpaOf(release));
 }
 
 const plain = (notes: string | null | undefined) => (notes ?? '').trim();

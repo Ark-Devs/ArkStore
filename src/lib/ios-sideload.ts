@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { create } from 'zustand';
 
 import { arkSideload } from '../../modules/ark-sideload';
 import type { IPhoneAnswer, IPhoneApp, IPhoneBridge, IPhoneDevice, IPhoneEvent } from './desktop';
@@ -121,11 +122,54 @@ async function installApp(app: { url: string; name: string; iconUrl?: string | n
   const s = await readState();
   if (!s.email) throw new Error('Sign in with your Apple Account first.');
   const ipa = await downloadIpa(app.url);
+  const record = async () => {
+    const next = await readState();
+    // One entry per app (ArkStore's own IPA URL changes with every version).
+    next.apps = next.apps.filter((a) => a.url !== app.url && !(app.name === 'ArkStore' && a.name === 'ArkStore'));
+    next.apps.push({ udid: SELF_ID, url: app.url, name: app.name, iconUrl: app.iconUrl ?? null, installedAt: new Date().toISOString() });
+    await writeState(next);
+  };
+  // iOS closes ArkStore while it replaces itself, before the job can report back: record first.
+  if (app.name === 'ArkStore') await record();
   await run('install', { target: target(), email: s.email, password, ipa, dataDir: dataDir(), machineName: 'ArkStore on iPhone' }, { quiet });
-  const next = await readState();
-  next.apps = next.apps.filter((a) => a.url !== app.url);
-  next.apps.push({ udid: SELF_ID, url: app.url, name: app.name, iconUrl: app.iconUrl ?? null, installedAt: new Date().toISOString() });
-  await writeState(next);
+  if (app.name !== 'ArkStore') await record();
+}
+
+// ---------------------------------------------------------------------------
+// ArkStore updating itself on the iPhone: the newest release's IPA, signed and installed like
+// any other app. iOS closes ArkStore while it's replaced; it opens on the new version.
+// ---------------------------------------------------------------------------
+
+type IphoneSelfUpdate = { status: 'idle' | 'updating' | 'error'; stage: string; percent: number; error?: string };
+export const useIphoneSelfUpdate = create<IphoneSelfUpdate>()(() => ({ status: 'idle', stage: '', percent: 0 }));
+
+/** The IPA of an ArkStore release, when this iPhone can install it itself. */
+export function iphoneIpaOf(release: { files: { os: string; name: string; url: string }[] } | null | undefined) {
+  if (!iphoneLocal || !release) return null;
+  return release.files.find((f) => f.os === 'ios' && /\.ipa$/i.test(f.name)) ?? null;
+}
+
+export async function updateArkStoreOnIphone(release: { version: string; files: { os: string; name: string; url: string }[] }) {
+  const ipa = iphoneIpaOf(release);
+  if (!ipa) throw new Error('This release has no iPhone build.');
+  const password = await savedPassword();
+  if (!password) {
+    throw new Error('Sign in once in Account › Your apps and renewing, with "Remember my password" on, so ArkStore can update itself.');
+  }
+  const set = useIphoneSelfUpdate.setState;
+  set({ status: 'updating', stage: 'download', percent: 0, error: undefined });
+  const stop = iphoneLocal!.onEvent((e) => {
+    if (e.event === 'progress') set({ stage: e.stage, percent: e.percent });
+  });
+  try {
+    await installApp({ url: ipa.url, name: 'ArkStore', iconUrl: 'https://github.com/Ark-Devs.png' }, password);
+    set({ status: 'idle', stage: 'done', percent: 100 });
+  } catch (e) {
+    set({ status: 'error', error: (e as Error).message.split(DETAILS)[0] });
+    throw e;
+  } finally {
+    stop();
+  }
 }
 
 /**
