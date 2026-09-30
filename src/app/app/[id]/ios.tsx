@@ -1,11 +1,14 @@
-// Installing one app on an iPhone or iPad. iOS can't install from a browser, so this offers the
-// ways that can: SideStore / AltStore (through ArkStore's source), TrollStore (straight from the
-// IPA link), or the IPA itself for Feather and other signers. First-time setup is on /download.
+// Installing one app on an iPhone or iPad. In ArkStore on the iPhone (set up from a computer) the
+// answer is its own Install button; the other ways fold away. Elsewhere it offers ArkStore on a
+// computer, SideStore / AltStore (through ArkStore's source), TrollStore (straight from the IPA
+// link), or the IPA itself for Feather and other signers. First-time setup is on /download.
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { View, ScrollView } from 'react-native';
 
 import { AddSourceButtons, openLink } from '@/components/ios/ios-guide';
 import { AppIcon } from '@/components/ui/app-icon';
+import { Tap } from '@/components/ui/tap';
 import { Button } from '@/components/ui/button';
 import { DotRule } from '@/components/ui/dots';
 import { EmptyState, Skeleton } from '@/components/ui/layout';
@@ -39,6 +42,8 @@ export default function IosInstallScreen() {
   const c = useColors();
   const { data: app, isLoading, error } = useApp(id);
   const onPhone = catalogOS() === 'ios';
+  // ArkStore on the iPhone installs apps itself: its button comes first, the rest folds away.
+  const [others, setOthers] = useState(false);
 
   if (isLoading) {
     return (
@@ -95,10 +100,26 @@ export default function IosInstallScreen() {
                 ? `ArkStore signs ${app.name} with your Apple Account and installs it, then renews it with your other apps.`
                 : `ArkStore signs ${app.name} with your Apple Account and installs it on your iPhone over USB. No other app needed.`
             }>
-            <Button label={iphoneLocal ? 'Install' : 'Install on iPhone'} variant="accent" onPress={() => router.push(`/iphone?app=${app.id}`)} />
+            <Button
+              label={iphoneLocal ? `Install ${app.name}` : 'Install on iPhone'}
+              variant="accent"
+              size={iphoneLocal ? 'lg' : 'md'}
+              full={Boolean(iphoneLocal)}
+              onPress={() => router.push(`/iphone?app=${app.id}`)}
+            />
           </Way>
         ) : null}
 
+        {iphoneLocal ? (
+          <Tap onPress={() => setOthers(!others)} accessibilityRole="button" style={{ paddingVertical: 8 }}>
+            <Txt variant="label" color="text2">
+              {others ? 'Hide other ways to install' : 'Other ways to install (SideStore, TrollStore, the IPA)'}
+            </Txt>
+          </Tap>
+        ) : null}
+
+        {iphoneLocal && !others ? null : (
+        <>
         <Way
           title="SideStore"
           body={`Installs ${app.name} in SideStore with one tap. SideStore asks you to confirm, then keeps it signed.`}
@@ -137,12 +158,16 @@ export default function IosInstallScreen() {
           </View>
         </Way>
 
-        <View style={{ alignItems: 'center', gap: 8, paddingTop: 6 }}>
-          <Txt variant="callout" color="text2" align="center">
-            First time? SideStore needs a one-time setup with a computer.
-          </Txt>
-          <Button label="Read the setup guide" variant="ghost" onPress={() => router.push('/download')} />
-        </View>
+        {iphoneLocal ? null : (
+          <View style={{ alignItems: 'center', gap: 8, paddingTop: 6 }}>
+            <Txt variant="callout" color="text2" align="center">
+              First time? Set up your iPhone once with ArkStore on a computer.
+            </Txt>
+            <Button label="Read the setup guide" variant="ghost" onPress={() => router.push('/download')} />
+          </View>
+        )}
+        </>
+        )}
       </ScrollView>
     </View>
   );
