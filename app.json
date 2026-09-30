@@ -30,11 +30,15 @@
       },
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",
-        "android.permission.QUERY_ALL_PACKAGES",
         "android.permission.POST_NOTIFICATIONS"
       ],
       "predictiveBackGestureEnabled": false,
-      "versionCode": 12
+      "versionCode": 12,
+      "blockedPermissions": [
+        "android.permission.QUERY_ALL_PACKAGES",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "single",
@@ -83,7 +87,8 @@
         }
       ],
       "./plugins/with-abi-splits",
-      "./plugins/with-release-signing"
+      "./plugins/with-release-signing",
+      "./plugins/with-package-queries"
     ],
     "experiments": {
       "typedRoutes": true,
