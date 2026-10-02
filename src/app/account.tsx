@@ -11,7 +11,7 @@ import { PlugsConnected } from 'phosphor-react-native/src/icons/PlugsConnected';
 import { SignOut } from 'phosphor-react-native/src/icons/SignOut';
 import { Sun } from 'phosphor-react-native/src/icons/Sun';
 import { useEffect, useState } from 'react';
-import { Platform, ScrollView, Switch, View } from 'react-native';
+import { Linking, Platform, ScrollView, Switch, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { DotGrid, DotRule } from '@/components/ui/dots';
@@ -43,6 +43,13 @@ const THEMES: { key: ThemePref; label: string; icon: typeof Sun }[] = [
   { key: 'system', label: 'System', icon: CircleHalf },
   { key: 'dark', label: 'Dark', icon: Moon },
   { key: 'light', label: 'Light', icon: Sun },
+];
+
+const CONTACTS = [
+  { label: 'Help and questions', email: 'support@arkdevs.xyz' },
+  { label: 'Report a problem', email: 'issues@arkdevs.xyz' },
+  { label: 'App takedowns and abuse', email: 'admin@arkdevs.xyz' },
+  { label: 'Everything else', email: 'contact@arkdevs.xyz' },
 ];
 
 function Row({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
@@ -329,6 +336,21 @@ export default function AccountScreen() {
             Every app here is built and shared by independent developers on GitHub. ArkStore downloads straight from
             their releases.
           </Txt>
+        </View>
+
+        <View style={{ height: 24 }} />
+        <SectionHeader title="Contact" />
+        <View style={{ paddingHorizontal: space.gutter }}>
+          {CONTACTS.map((m) => (
+            <Tap
+              key={m.email}
+              onPress={() => Linking.openURL(`mailto:${m.email}`).catch(() => undefined)}
+              accessibilityRole="link"
+              accessibilityLabel={`${m.label}, email ${m.email}`}
+            >
+              <Row label={m.label} value={m.email} />
+            </Tap>
+          ))}
         </View>
       </ScrollView>
     </View>

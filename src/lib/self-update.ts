@@ -31,34 +31,48 @@ export type ArkStoreRelease = {
   files: ReleaseFile[];
 };
 
-/** The newest ArkStore release on GitHub (never drafts or prereleases). */
-export async function fetchLatestArkStore(): Promise<ArkStoreRelease | null> {
-  const res = await fetch(`https://api.github.com/repos/${ARKSTORE_REPO}/releases/latest`, {
+type GitHubRelease = {
+  tag_name: string;
+  body: string | null;
+  published_at: string | null;
+  html_url: string;
+  draft?: boolean;
+  prerelease?: boolean;
+  assets: { name: string; size: number; browser_download_url: string }[];
+};
+
+const toRelease = (r: GitHubRelease): ArkStoreRelease => ({
+  version: r.tag_name.replace(/^v/i, ''),
+  tag: r.tag_name,
+  notes: (r.body ?? '').trim(),
+  publishedAt: r.published_at,
+  url: r.html_url,
+  files: installableAssets(r.assets),
+});
+
+/**
+ * The newest ArkStore release on GitHub (never drafts or prereleases). With `os`, the newest
+ * that has a build for it: an iPhone-only release isn't marked latest, so the other platforms
+ * and the download page stay on the last release that has their builds.
+ */
+export async function fetchLatestArkStore(os?: 'ios'): Promise<ArkStoreRelease | null> {
+  const res = await fetch(`https://api.github.com/repos/${ARKSTORE_REPO}/releases${os ? '?per_page=20' : '/latest'}`, {
     headers: { Accept: 'application/vnd.github+json' },
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-  const r = (await res.json()) as {
-    tag_name: string;
-    body: string | null;
-    published_at: string | null;
-    html_url: string;
-    assets: { name: string; size: number; browser_download_url: string }[];
-  };
-  return {
-    version: r.tag_name.replace(/^v/i, ''),
-    tag: r.tag_name,
-    notes: (r.body ?? '').trim(),
-    publishedAt: r.published_at,
-    url: r.html_url,
-    files: installableAssets(r.assets),
-  };
+  if (!os) return toRelease((await res.json()) as GitHubRelease);
+  const list = ((await res.json()) as GitHubRelease[]).filter((r) => !r.draft && !r.prerelease).map(toRelease);
+  return list.find((r) => r.files.some((f) => f.os === os)) ?? null;
 }
 
-export function useLatestArkStore(enabled = true) {
+/** On an iPhone (or setting one up), the newest release with an iPhone build. */
+export const latestFor = (ios: boolean) => (ios ? (['arkstore-latest', 'ios'] as const) : (['arkstore-latest'] as const));
+
+export function useLatestArkStore(enabled = true, ios = false) {
   return useQuery({
-    queryKey: ['arkstore-latest'],
-    queryFn: fetchLatestArkStore,
+    queryKey: latestFor(ios),
+    queryFn: () => fetchLatestArkStore(ios ? 'ios' : undefined),
     enabled,
     staleTime: 60 * 60 * 1000,
     retry: 1,
@@ -158,9 +172,10 @@ const HOUR = 60 * 60 * 1000;
 /** Whether a newer ArkStore release is out for this device. Rechecks GitHub every hour. */
 export function useArkStoreUpdate(): ArkStoreUpdate | null {
   const inApp = Boolean(desktop) || Platform.OS === 'android' || Boolean(iphoneLocal);
+  const ios = !desktop && Boolean(iphoneLocal);
   const latest = useQuery({
-    queryKey: ['arkstore-latest'],
-    queryFn: fetchLatestArkStore,
+    queryKey: latestFor(ios),
+    queryFn: () => fetchLatestArkStore(ios ? 'ios' : undefined),
     enabled: inApp,
     staleTime: HOUR,
     refetchInterval: HOUR,

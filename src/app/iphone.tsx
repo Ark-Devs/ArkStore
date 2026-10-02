@@ -22,7 +22,7 @@ import { useApp } from '@/lib/api';
 import { desktop, type IPhoneApp, type IPhoneDevice, type IPhoneEvent } from '@/lib/desktop';
 import { rankAssets } from '@/lib/github/assets';
 import { IOS_LINKS, openInApp } from '@/lib/ios';
-import { DETAILS, iphoneLocal } from '@/lib/ios-sideload';
+import { DETAILS, importPairingFile, iphoneLocal } from '@/lib/ios-sideload';
 import { useLatestArkStore } from '@/lib/self-update';
 import { radius, space, useColors } from '@/theme';
 
@@ -177,7 +177,7 @@ export default function IPhoneScreen() {
   const c = useColors();
   const { app: appId } = useLocalSearchParams<{ app?: string }>();
   const { data: target } = useApp(appId);
-  const latest = useLatestArkStore(Boolean(bridge));
+  const latest = useLatestArkStore(Boolean(bridge), true);
 
   const [driver, setDriver] = useState(true);
   const [devices, setDevices] = useState<IPhoneDevice[] | null>(null);
@@ -342,10 +342,21 @@ export default function IPhoneScreen() {
           }>
           {onPhone ? (
             ready ? null : problem === 'no-pairing' ? (
-              <P>
-                ArkStore needs to be installed once by ArkStore on a computer (Windows, Mac or Linux): open it there, go to Account ›
-                Set up iPhone and install ArkStore with the iPhone plugged in. That also sets up this iPhone to renew apps by itself.
-              </P>
+              <>
+                <P>
+                  ArkStore needs this iPhone&apos;s pairing file to install apps by itself. Already have one from iloader, SideStore&apos;s
+                  setup or JitterbugPair (.mobiledevicepairing or .plist)? Choose it here.
+                </P>
+                <Button
+                  label="Choose pairing file"
+                  variant="accent"
+                  onPress={() => importPairingFile().catch((e) => setError((e as Error).message))}
+                />
+                <P>
+                  Or install ArkStore once with ArkStore on a computer (Account › Set up iPhone, iPhone plugged in): that puts the
+                  pairing file here for you.
+                </P>
+              </>
             ) : (
               <>
                 <P>
@@ -353,6 +364,11 @@ export default function IPhoneScreen() {
                   Store, open it and tap Connect, then come back here.
                 </P>
                 <Button label="Get LocalDevVPN" variant="accent" onPress={() => openInApp(IOS_LINKS.localDevVpn)} />
+                {listError ? (
+                  <Txt variant="caption" color="text3" selectable>
+                    {listError.split(DETAILS)[0]}
+                  </Txt>
+                ) : null}
               </>
             )
           ) : !driver ? (

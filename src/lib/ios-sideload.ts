@@ -37,6 +37,19 @@ const dataDir = () => {
 const pairingFile = () => new File(Paths.document, PAIRING_FILE);
 const target = () => ({ ip: SELF_IP, pairingFile: path(pairingFile()) });
 
+/**
+ * Uses a pairing file the person already has (from iloader, SideStore's setup or JitterbugPair),
+ * for when ArkStore wasn't installed by ArkStore on a computer. Returns false when cancelled.
+ */
+export async function importPairingFile(): Promise<boolean> {
+  const picked = await File.pickFileAsync();
+  if (picked.canceled) return false;
+  const dest = pairingFile();
+  if (dest.exists) dest.delete();
+  picked.result.copy(dest);
+  return true;
+}
+
 async function readState(): Promise<State> {
   try {
     return { email: null, apps: [], ...JSON.parse((await AsyncStorage.getItem(STATE_KEY)) ?? '{}') };
@@ -269,7 +282,7 @@ async function trackSelf() {
   const s = await readState();
   const mine = s.apps.find((a) => a.name === 'ArkStore');
   if (mine && Date.parse(mine.installedAt) >= installedAt.getTime() - 60_000) return;
-  const release = await fetchLatestArkStore().catch(() => null);
+  const release = await fetchLatestArkStore('ios').catch(() => null);
   const ipa = release?.files.find((f) => f.os === 'ios' && /\.ipa$/i.test(f.name));
   if (!ipa) return;
   s.apps = s.apps.filter((a) => a.name !== 'ArkStore');
