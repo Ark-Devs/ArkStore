@@ -35,6 +35,20 @@ const dataDir = () => {
   return path(d);
 };
 const pairingFile = () => new File(Paths.document, PAIRING_FILE);
+
+/**
+ * The pairing file, if this iPhone has one. The computer puts it inside ArkStore's Info.plist
+ * when it installs ArkStore (and also copies it to Documents); bring it out to Documents here.
+ */
+function ensurePairingFile(): boolean {
+  const f = pairingFile();
+  if (f.exists && f.size) return true;
+  const embedded = arkSideload?.embeddedPairing?.();
+  if (!embedded) return false;
+  if (!f.exists) f.create();
+  f.write(embedded);
+  return true;
+}
 const target = () => ({ ip: SELF_IP, pairingFile: path(pairingFile()) });
 
 /**
@@ -144,7 +158,9 @@ async function installApp(app: { url: string; name: string; iconUrl?: string | n
   };
   // iOS closes ArkStore while it replaces itself, before the job can report back: record first.
   if (app.name === 'ArkStore') await record();
-  await run('install', { target: target(), email: s.email, password, ipa, dataDir: dataDir(), machineName: 'ArkStore on iPhone' }, { quiet });
+  // ArkStore keeps carrying the pairing file in its Info.plist when it updates itself.
+  const embedPairing = app.name === 'ArkStore';
+  await run('install', { target: target(), email: s.email, password, ipa, dataDir: dataDir(), machineName: 'ArkStore on iPhone', embedPairing }, { quiet });
   if (app.name !== 'ArkStore') await record();
 }
 
@@ -215,7 +231,7 @@ export const iphoneLocal: IPhoneBridge | undefined =
   Platform.OS === 'ios' && arkSideload
     ? {
         async devices() {
-          if (!pairingFile().exists) return { driver: true, devices: [], problem: 'no-pairing' as const };
+          if (!ensurePairingFile()) return { driver: true, devices: [], problem: 'no-pairing' as const };
           try {
             const r = await run('ping', { target: target() });
             const me: IPhoneDevice = { udid: SELF_ID, connection: 'other', trusted: true, name: String(r.name ?? 'This iPhone'), ios: String(r.ios ?? '') };

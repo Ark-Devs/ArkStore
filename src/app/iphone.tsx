@@ -353,9 +353,11 @@ export default function IPhoneScreen() {
                   onPress={() => importPairingFile().catch((e) => setError((e as Error).message))}
                 />
                 <P>
-                  Or install ArkStore once with ArkStore on a computer (Account › Set up iPhone, iPhone plugged in): that puts the
-                  pairing file here for you.
+                  Or, once, with a computer: get ArkStore 1.3.4 or newer for Windows, Mac or Linux, open Account › Set up iPhone, plug
+                  this iPhone in and install ArkStore from there. Your apps and Apple Account stay; that puts the pairing file inside
+                  ArkStore for you.
                 </P>
+                <Button label="Get ArkStore for computer" variant="secondary" onPress={() => openInApp('https://store.arkdevs.xyz/download')} />
               </>
             ) : (
               <>
@@ -364,11 +366,7 @@ export default function IPhoneScreen() {
                   Store, open it and tap Connect, then come back here.
                 </P>
                 <Button label="Get LocalDevVPN" variant="accent" onPress={() => openInApp(IOS_LINKS.localDevVpn)} />
-                {listError ? (
-                  <Txt variant="caption" color="text3" selectable>
-                    {listError.split(DETAILS)[0]}
-                  </Txt>
-                ) : null}
+                {listError ? <ErrorBox error={listError} /> : null}
               </>
             )
           ) : !driver ? (

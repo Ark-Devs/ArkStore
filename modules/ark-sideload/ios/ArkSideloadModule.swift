@@ -23,5 +23,11 @@ public class ArkSideloadModule: Module {
     Function("cancel") { (job: Double) in
       ark_cancel(UInt64(job))
     }
+
+    // The pairing file the computer put in Info.plist when it installed ArkStore
+    // (PAIRING_INFO_KEY in sideload/src/lib.rs).
+    Function("embeddedPairing") { () -> String? in
+      Bundle.main.object(forInfoDictionaryKey: "ArkPairingFile") as? String
+    }
   }
 }
