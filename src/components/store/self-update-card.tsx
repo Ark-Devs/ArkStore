@@ -102,7 +102,7 @@ function AndroidCard() {
 }
 
 function IphoneCard() {
-  const latest = useLatestArkStore(Boolean(iphoneLocal));
+  const latest = useLatestArkStore(Boolean(iphoneLocal), true);
   const task = useIphoneSelfUpdate();
   const release = latest.data;
   if (!release || !iphoneUpdateAvailable(release)) return null;

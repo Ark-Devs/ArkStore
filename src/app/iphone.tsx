@@ -22,7 +22,7 @@ import { useApp } from '@/lib/api';
 import { desktop, type IPhoneApp, type IPhoneDevice, type IPhoneEvent } from '@/lib/desktop';
 import { rankAssets } from '@/lib/github/assets';
 import { IOS_LINKS, openInApp } from '@/lib/ios';
-import { DETAILS, iphoneLocal } from '@/lib/ios-sideload';
+import { DETAILS, importPairingFile, iphoneLocal } from '@/lib/ios-sideload';
 import { useLatestArkStore } from '@/lib/self-update';
 import { radius, space, useColors } from '@/theme';
 
@@ -177,7 +177,7 @@ export default function IPhoneScreen() {
   const c = useColors();
   const { app: appId } = useLocalSearchParams<{ app?: string }>();
   const { data: target } = useApp(appId);
-  const latest = useLatestArkStore(Boolean(bridge));
+  const latest = useLatestArkStore(Boolean(bridge), true);
 
   const [driver, setDriver] = useState(true);
   const [devices, setDevices] = useState<IPhoneDevice[] | null>(null);
@@ -344,9 +344,18 @@ export default function IPhoneScreen() {
             ready ? null : problem === 'no-pairing' ? (
               <>
                 <P>
-                  This iPhone isn&apos;t set up to install apps by itself yet. Do this once, with a computer: get ArkStore 1.3.3 or
-                  newer for Windows, Mac or Linux, open Account › Set up iPhone, plug this iPhone in and install ArkStore from there.
-                  Your apps and Apple Account stay; after that, installing and renewing happen right here.
+                  ArkStore needs this iPhone&apos;s pairing file to install apps by itself. Already have one from iloader, SideStore&apos;s
+                  setup or JitterbugPair (.mobiledevicepairing or .plist)? Choose it here.
+                </P>
+                <Button
+                  label="Choose pairing file"
+                  variant="accent"
+                  onPress={() => importPairingFile().catch((e) => setError((e as Error).message))}
+                />
+                <P>
+                  Or, once, with a computer: get ArkStore 1.3.4 or newer for Windows, Mac or Linux, open Account › Set up iPhone, plug
+                  this iPhone in and install ArkStore from there. Your apps and Apple Account stay; that puts the pairing file inside
+                  ArkStore for you.
                 </P>
                 <Button label="Get ArkStore for computer" variant="secondary" onPress={() => openInApp('https://store.arkdevs.xyz/download')} />
               </>

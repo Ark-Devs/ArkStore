@@ -375,7 +375,11 @@ fn embed_pairing(ipa: &Path, pairing: &[u8], data_dir: &Path) -> Result<PathBuf,
     let info = app.join("Info.plist");
     let mut plist = plist::Value::from_file(&info).map_err(|e| report!("Couldn't read the app's Info.plist: {e}"))?;
     let dict = plist.as_dictionary_mut().ok_or_else(|| report!("The app's Info.plist isn't a dictionary"))?;
-    let text = String::from_utf8(pairing.to_vec()).map_err(|_| report!("The pairing file isn't text"))?;
+    // Pairing files picked on the iPhone may be binary plists: store them as XML text.
+    let parsed = plist::Value::from_reader(std::io::Cursor::new(pairing)).map_err(|e| report!("The pairing file isn't valid: {e}"))?;
+    let mut xml = Vec::new();
+    parsed.to_writer_xml(&mut xml).map_err(|e| report!("Couldn't write the pairing file: {e}"))?;
+    let text = String::from_utf8(xml).map_err(|_| report!("The pairing file isn't text"))?;
     dict.insert(PAIRING_INFO_KEY.to_string(), plist::Value::String(text));
     plist.to_file_xml(&info).map_err(|e| report!("Couldn't write the app's Info.plist: {e}"))?;
     Ok(app)
@@ -543,12 +547,19 @@ async fn install(req: InstallRequest, io: &Arc<Io>) -> Result<(), Report> {
 
     let mut app_path = req.ipa.clone();
     if req.embed_pairing || req.pair_for.is_some() {
-        let pairing = match (&target.pairing_file, &target.udid) {
-            (Some(file), _) => std::fs::read(file).context("Couldn't read the pairing file")?,
-            (None, Some(udid)) => pairing_for(udid).await.context("Couldn't set up renewing on the iPhone")?,
+        match (&target.pairing_file, &target.udid) {
+            // On the iPhone: ArkStore already has its pairing file in Documents, so carrying it
+            // along is a bonus and a failure here must not stop the update.
+            (Some(file), _) => match std::fs::read(file).map_err(|e| report!("{e}")).and_then(|p| embed_pairing(&req.ipa, &p, &req.data_dir)) {
+                Ok(app) => app_path = app,
+                Err(e) => io.emit(json!({ "event": "log", "message": format!("Couldn't embed the pairing file: {e}") })),
+            },
+            (None, Some(udid)) => {
+                let pairing = pairing_for(udid).await.context("Couldn't set up renewing on the iPhone")?;
+                app_path = embed_pairing(&req.ipa, &pairing, &req.data_dir)?;
+            }
             (None, None) => bail!("No iPhone to set up renewing for"),
-        };
-        app_path = embed_pairing(&req.ipa, &pairing, &req.data_dir)?;
+        }
     }
 
     io.progress("signin", 0);
@@ -611,12 +622,18 @@ mod tests {
         zip.write_all(&xml).unwrap();
         zip.finish().unwrap();
 
-        let pairing = b"<?xml version=\"1.0\"?><plist><dict><key>UDID</key><string>x</string></dict></plist>";
-        let app = embed_pairing(&ipa, pairing, &dir).unwrap();
+        // A binary plist, like some pairing files picked on the iPhone.
+        let mut record = plist::Dictionary::new();
+        record.insert("UDID".into(), "00008110-TEST".into());
+        let mut pairing = Vec::new();
+        plist::Value::Dictionary(record).to_writer_binary(&mut pairing).unwrap();
+        let app = embed_pairing(&ipa, &pairing, &dir).unwrap();
         assert!(app.ends_with("Payload/ArkStore.app"));
         let info = plist::Value::from_file(app.join("Info.plist")).unwrap();
         let info = info.as_dictionary().unwrap();
-        assert_eq!(info.get(PAIRING_INFO_KEY).and_then(|v| v.as_string()), Some(std::str::from_utf8(pairing).unwrap()));
+        let embedded = info.get(PAIRING_INFO_KEY).and_then(|v| v.as_string()).unwrap();
+        let embedded = plist::Value::from_reader_xml(embedded.as_bytes()).unwrap();
+        assert_eq!(embedded.as_dictionary().unwrap().get("UDID").and_then(|v| v.as_string()), Some("00008110-TEST"));
         assert_eq!(info.get("CFBundleIdentifier").and_then(|v| v.as_string()), Some("com.arkdevs.arkstore"));
         std::fs::remove_dir_all(&dir).unwrap();
     }

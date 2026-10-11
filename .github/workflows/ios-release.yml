@@ -131,5 +131,8 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.ipa --clobber
           else
-            gh release create "$TAG" dist/*.ipa --title "ArkStore $TAG" --notes-file "release-notes/$TAG.md" --target "$GITHUB_SHA"
+            # Run by hand, it's an iPhone-only release: not "latest", so Android, desktop and the
+            # download page keep the last release that has their builds.
+            latest=$([[ "$GITHUB_REF" == refs/tags/* ]] && echo true || echo false)
+            gh release create "$TAG" dist/*.ipa --title "ArkStore $TAG" --notes-file "release-notes/$TAG.md" --target "$GITHUB_SHA" --latest="$latest"
           fi
