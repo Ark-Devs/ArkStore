@@ -21,7 +21,11 @@
 // `target` is {"udid": "..."} for a device on usbmuxd, or {"ip": "10.7.0.1", "pairingFile":
 // "/path"} for a device reached over the network (the iPhone itself, through LocalDevVPN).
 // `udid` alone is accepted as {"udid"} for older callers.
-use std::{net::IpAddr, path::PathBuf, sync::Arc};
+use std::{
+    net::IpAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use idevice::{
     IdeviceService,
@@ -51,6 +55,9 @@ pub mod ffi;
 const LABEL: &str = "ArkStore";
 /// Where ArkStore on the iPhone finds the pairing file the desktop app leaves in its Documents.
 pub const PAIRING_FILE_NAME: &str = "ArkStorePairing.plist";
+/// Info.plist key the pairing file is embedded under when ArkStore itself is installed, so the
+/// iPhone app always has it (modules/ark-sideload reads it back with embeddedPairing()).
+pub const PAIRING_INFO_KEY: &str = "ArkPairingFile";
 
 // ---------------------------------------------------------------------------
 // Talking to the front end
@@ -297,8 +304,8 @@ async fn pair(req: PairRequest, io: &Io) -> Result<(), Report> {
 }
 
 /// Lets this computer's pairing be used over the network (which is how the iPhone reaches its
-/// own lockdownd through LocalDevVPN), and copies the pairing file into the app's Documents.
-async fn place_pairing_file(udid: &str, bundle_id: &str) -> Result<(), Report> {
+/// own lockdownd through LocalDevVPN) and returns the pairing file for the iPhone to use.
+async fn pairing_for(udid: &str) -> Result<Vec<u8>, Report> {
     let addr = UsbmuxdAddr::from_env_var().unwrap_or_default();
     let mut mux = addr.connect(0).await.map_err(|e| report!("Can't reach Apple's device service ({e})."))?;
     let record = mux.get_pair_record(udid).await.context("This computer isn't paired with the iPhone")?;
@@ -311,16 +318,67 @@ async fn place_pairing_file(udid: &str, bundle_id: &str) -> Result<(), Report> {
         .await
         .context("Couldn't allow network connections on the iPhone")?;
 
-    let bytes = record.serialize().map_err(|e| report!("Couldn't write the pairing file: {e}"))?;
-    let house_arrest = HouseArrestClient::connect(&provider).await?;
-    let mut afc = house_arrest
-        .vend_documents(bundle_id)
-        .await
-        .context("Couldn't open ArkStore's Documents on the iPhone")?;
-    let mut file = afc.open(format!("/Documents/{PAIRING_FILE_NAME}"), AfcFopenMode::WrOnly).await?;
+    record.serialize().map_err(|e| report!("Couldn't write the pairing file: {e}").into_dynamic())
+}
+
+/// Also copies the pairing file into the app's Documents (where the iPhone app keeps it), and
+/// reads it back to be sure it's there. Documents only opens for apps with UIFileSharingEnabled,
+/// so this falls back to the whole container (open for apps signed for development, like ours).
+async fn place_pairing_file(udid: &str, bundle_id: &str) -> Result<(), Report> {
+    let bytes = pairing_for(udid).await?;
+    let addr = UsbmuxdAddr::from_env_var().unwrap_or_default();
+    let mut mux = addr.connect(0).await.map_err(|e| report!("Can't reach Apple's device service ({e})."))?;
+    let dev = mux.get_device(udid).await.map_err(|_| report!("The iPhone was disconnected."))?;
+    let provider = dev.to_provider(addr, LABEL);
+
+    let path = format!("/Documents/{PAIRING_FILE_NAME}");
+    let mut afc = match HouseArrestClient::connect(&provider).await?.vend_documents(bundle_id).await {
+        Ok(afc) => afc,
+        Err(documents) => HouseArrestClient::connect(&provider)
+            .await?
+            .vend_container(bundle_id)
+            .await
+            .map_err(|container| {
+                report!("The iPhone wouldn't let ArkStore's files be opened ({documents}; {container}). Is {bundle_id} installed?")
+            })?,
+    };
+    let mut file = afc.open(&path, AfcFopenMode::WrOnly).await.context("Couldn't create the pairing file on the iPhone")?;
     file.write_entire(&bytes).await?;
     file.close().await?;
+
+    let mut file = afc.open(&path, AfcFopenMode::RdOnly).await.context("Couldn't read the pairing file back")?;
+    let written = file.read_entire().await?;
+    file.close().await?;
+    if written != bytes {
+        bail!("The pairing file on the iPhone doesn't match what was written.");
+    }
     Ok(())
+}
+
+/// Unpacks the .ipa and adds the pairing file to the app's Info.plist (before it's signed), so
+/// the app carries it with it. Returns the .app folder to sign instead of the .ipa.
+fn embed_pairing(ipa: &Path, pairing: &[u8], data_dir: &Path) -> Result<PathBuf, Report> {
+    let dir = data_dir.join("embed");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).context("Couldn't make a folder to prepare the app in")?;
+    let file = std::fs::File::open(ipa).context("Couldn't open the app file")?;
+    zip::ZipArchive::new(file)
+        .and_then(|mut a| a.extract(&dir))
+        .map_err(|e| report!("Couldn't unpack the app file: {e}"))?;
+    let app = std::fs::read_dir(dir.join("Payload"))
+        .context("The app file has no Payload folder")?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .find(|p| p.extension().is_some_and(|x| x == "app"))
+        .ok_or_else(|| report!("The app file has no app in it"))?;
+
+    let info = app.join("Info.plist");
+    let mut plist = plist::Value::from_file(&info).map_err(|e| report!("Couldn't read the app's Info.plist: {e}"))?;
+    let dict = plist.as_dictionary_mut().ok_or_else(|| report!("The app's Info.plist isn't a dictionary"))?;
+    let text = String::from_utf8(pairing.to_vec()).map_err(|_| report!("The pairing file isn't text"))?;
+    dict.insert(PAIRING_INFO_KEY.to_string(), plist::Value::String(text));
+    plist.to_file_xml(&info).map_err(|e| report!("Couldn't write the app's Info.plist: {e}"))?;
+    Ok(app)
 }
 
 // ---------------------------------------------------------------------------
@@ -473,11 +531,25 @@ struct InstallRequest {
     /// The app's own bundle ID (e.g. com.arkdevs.arkstore): after installing it over USB, set
     /// it up to renew apps on the iPhone by itself (see place_pairing_file).
     pair_for: Option<String>,
+    /// Embed the pairing file in the app (ArkStore itself; see embed_pairing). On the iPhone the
+    /// target's pairing file is used, over USB the computer's.
+    #[serde(default)]
+    embed_pairing: bool,
 }
 
 async fn install(req: InstallRequest, io: &Arc<Io>) -> Result<(), Report> {
     let target = req.target.clone().unwrap_or(Target { udid: req.udid.clone(), ip: None, pairing_file: None });
     let p = provider(&target).await?;
+
+    let mut app_path = req.ipa.clone();
+    if req.embed_pairing || req.pair_for.is_some() {
+        let pairing = match (&target.pairing_file, &target.udid) {
+            (Some(file), _) => std::fs::read(file).context("Couldn't read the pairing file")?,
+            (None, Some(udid)) => pairing_for(udid).await.context("Couldn't set up renewing on the iPhone")?,
+            (None, None) => bail!("No iPhone to set up renewing for"),
+        };
+        app_path = embed_pairing(&req.ipa, &pairing, &req.data_dir)?;
+    }
 
     io.progress("signin", 0);
     let session = sign_in(&req.email, &req.password, &req.data_dir, io).await?;
@@ -498,16 +570,54 @@ async fn install(req: InstallRequest, io: &Arc<Io>) -> Result<(), Report> {
         io3.progress(if p < 1.0 { "sign" } else { "transfer" }, (5.0 + p * 90.0).min(95.0) as u32);
         std::future::ready(())
     };
-    with_provider!(&p, |p| sideloader.install_app(p, req.ipa.clone(), false, Some(on_progress.clone())).await)?;
+    with_provider!(&p, |p| sideloader.install_app(p, app_path.clone(), false, Some(on_progress.clone())).await)?;
 
     let team = sideloader.get_team().await?;
     let installed_as = req.pair_for.as_ref().map(|id| format!("{id}.{}", team.team_id));
     if let (Some(bundle_id), Some(udid)) = (&installed_as, &target.udid) {
         io.progress("pair", 97);
-        place_pairing_file(udid, bundle_id).await.context("Installed, but couldn't set up renewing on the iPhone")?;
+        // The pairing already travels inside the app; this copy is a second way in, so a
+        // failure is reported but doesn't fail the install.
+        if let Err(e) = place_pairing_file(udid, bundle_id).await {
+            io.emit(json!({ "event": "log", "message": format!("Couldn't copy the pairing file to Documents: {e}") }));
+        }
+    }
+    if app_path != req.ipa {
+        let _ = std::fs::remove_dir_all(req.data_dir.join("embed"));
     }
 
     io.progress("done", 100);
-    io.emit(json!({ "event": "done", "teamId": team.team_id, "bundleId": installed_as }));
+    io.emit(json!({ "event": "done", "teamId": team.team_id, "bundleId": installed_as, "pairingEmbedded": app_path != req.ipa }));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn embeds_the_pairing_file_in_info_plist() {
+        let dir = std::env::temp_dir().join(format!("ark-embed-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let ipa = dir.join("App.ipa");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&ipa).unwrap());
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("Payload/ArkStore.app/Info.plist", opts).unwrap();
+        let mut info = plist::Dictionary::new();
+        info.insert("CFBundleIdentifier".into(), "com.arkdevs.arkstore".into());
+        let mut xml = Vec::new();
+        plist::Value::Dictionary(info).to_writer_xml(&mut xml).unwrap();
+        zip.write_all(&xml).unwrap();
+        zip.finish().unwrap();
+
+        let pairing = b"<?xml version=\"1.0\"?><plist><dict><key>UDID</key><string>x</string></dict></plist>";
+        let app = embed_pairing(&ipa, pairing, &dir).unwrap();
+        assert!(app.ends_with("Payload/ArkStore.app"));
+        let info = plist::Value::from_file(app.join("Info.plist")).unwrap();
+        let info = info.as_dictionary().unwrap();
+        assert_eq!(info.get(PAIRING_INFO_KEY).and_then(|v| v.as_string()), Some(std::str::from_utf8(pairing).unwrap()));
+        assert_eq!(info.get("CFBundleIdentifier").and_then(|v| v.as_string()), Some("com.arkdevs.arkstore"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

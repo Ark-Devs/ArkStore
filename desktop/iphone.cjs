@@ -167,7 +167,7 @@ async function fetchIpa(url) {
 }
 
 // ArkStore itself: after installing it, the desktop app also sets it up to install and renew
-// apps on the iPhone without a computer (pairing file in its Documents; see sideload/src/lib.rs).
+// apps on the iPhone without a computer (pairing file inside its Info.plist and its Documents; see sideload/src/lib.rs).
 const ARKSTORE_BUNDLE_ID = 'com.arkdevs.arkstore';
 
 /** Signs and installs one app. Used by the window and by the background refresh. */

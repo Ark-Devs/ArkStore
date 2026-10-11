@@ -10,6 +10,8 @@ type ArkSideloadNative = {
   next(job: number): string | null;
   answer(job: number, answerJson: string): void;
   cancel(job: number): void;
+  /** The pairing file the computer embedded in ArkStore's Info.plist, if any (older builds lack this). */
+  embeddedPairing?(): string | null;
 };
 
 export const arkSideload = requireOptionalNativeModule<ArkSideloadNative>('ArkSideload');

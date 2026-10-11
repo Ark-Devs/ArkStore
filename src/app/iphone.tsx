@@ -342,10 +342,14 @@ export default function IPhoneScreen() {
           }>
           {onPhone ? (
             ready ? null : problem === 'no-pairing' ? (
-              <P>
-                ArkStore needs to be installed once by ArkStore on a computer (Windows, Mac or Linux): open it there, go to Account ›
-                Set up iPhone and install ArkStore with the iPhone plugged in. That also sets up this iPhone to renew apps by itself.
-              </P>
+              <>
+                <P>
+                  This iPhone isn&apos;t set up to install apps by itself yet. Do this once, with a computer: get ArkStore 1.3.3 or
+                  newer for Windows, Mac or Linux, open Account › Set up iPhone, plug this iPhone in and install ArkStore from there.
+                  Your apps and Apple Account stay; after that, installing and renewing happen right here.
+                </P>
+                <Button label="Get ArkStore for computer" variant="secondary" onPress={() => openInApp('https://store.arkdevs.xyz/download')} />
+              </>
             ) : (
               <>
                 <P>
@@ -353,6 +357,7 @@ export default function IPhoneScreen() {
                   Store, open it and tap Connect, then come back here.
                 </P>
                 <Button label="Get LocalDevVPN" variant="accent" onPress={() => openInApp(IOS_LINKS.localDevVpn)} />
+                {listError ? <ErrorBox error={listError} /> : null}
               </>
             )
           ) : !driver ? (
