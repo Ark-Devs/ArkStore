@@ -111,7 +111,7 @@ function friendly(message: string): string {
     if (/maximum.*app id|app id limit|-7011/i.test(m))
       return 'Your free Apple Account can register 10 new apps a week, and that limit is reached. It resets within 7 days; apps you already have can still be renewed.';
     if (/3 apps|maximum number of (installed )?apps/i.test(m)) return 'A free Apple Account can have 3 apps signed this way at a time. Delete one and try again.';
-    if (/Connect LocalDevVPN|timed out|Connection refused|os error 6[01]/i.test(m)) return 'Connect LocalDevVPN (open it and tap Connect), then try again.';
+    if (/Connect LocalDevVPN|timed out|Connection refused|socket io failed|os error 6[01]/i.test(m)) return 'Connect LocalDevVPN (open it and tap Connect), then try again.';
     if (/Cancelled/.test(m)) return 'Cancelled.';
     return null;
   })();
