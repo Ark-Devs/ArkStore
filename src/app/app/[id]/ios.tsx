@@ -4,7 +4,7 @@
 // link), or the IPA itself for Feather and other signers. First-time setup is on /download.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { View, ScrollView } from 'react-native';
+import { Alert, View, ScrollView } from 'react-native';
 
 import { AddSourceButtons, openLink } from '@/components/ios/ios-guide';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -19,7 +19,7 @@ import { desktop } from '@/lib/desktop';
 import { iphoneLocal } from '@/lib/ios-sideload';
 import { fileSize, shortVersion } from '@/lib/format';
 import { rankAssets } from '@/lib/github/assets';
-import { openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
+import { LIVECONTAINER, liveContainerInstallLink, openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
 import { catalogOS } from '@/lib/platform';
 import { friendlyError } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
@@ -92,9 +92,30 @@ export default function IosInstallScreen() {
         </View>
         <DotRule />
 
+        {iphoneLocal ? (
+          <Way
+            title="Install in LiveContainer"
+            body={`No 3-app limit: ${app.name} runs inside LiveContainer, which ArkStore installs once and keeps signed. Add it to your Home Screen from LiveContainer (hold the app).`}>
+            <Button
+              label={`Get ${app.name}`}
+              variant="accent"
+              size="lg"
+              full
+              onPress={async () => {
+                if (await openInApp(liveContainerInstallLink(ipa.url))) return;
+                Alert.alert('Install LiveContainer first', 'ArkStore installs it once, then every app goes inside it.', [
+                  { text: 'Not now', style: 'cancel' },
+                  { text: 'Install LiveContainer', onPress: () => router.push(`/iphone?app=${LIVECONTAINER.id}`) },
+                ]);
+              }}
+            />
+            <Button label="Install or renew LiveContainer" variant="ghost" size="sm" onPress={() => router.push(`/iphone?app=${LIVECONTAINER.id}`)} />
+          </Way>
+        ) : null}
+
         {desktop?.iphone || iphoneLocal ? (
           <Way
-            title={iphoneLocal ? 'Install with ArkStore' : 'From this computer'}
+            title={iphoneLocal ? 'Install as its own app (uses 1 of your 3)' : 'From this computer'}
             body={
               iphoneLocal
                 ? `ArkStore signs ${app.name} with your Apple Account and installs it, then renews it with your other apps.`
@@ -102,9 +123,8 @@ export default function IosInstallScreen() {
             }>
             <Button
               label={iphoneLocal ? `Install ${app.name}` : 'Install on iPhone'}
-              variant="accent"
-              size={iphoneLocal ? 'lg' : 'md'}
-              full={Boolean(iphoneLocal)}
+              variant={iphoneLocal ? 'secondary' : 'accent'}
+              size="md"
               onPress={() => router.push(`/iphone?app=${app.id}`)}
             />
           </Way>

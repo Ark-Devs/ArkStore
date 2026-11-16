@@ -15,7 +15,8 @@
         "LSApplicationQueriesSchemes": [
           "sidestore",
           "altstore",
-          "apple-magnifier"
+          "apple-magnifier",
+          "livecontainer"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }
