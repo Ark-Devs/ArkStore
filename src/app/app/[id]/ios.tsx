@@ -4,7 +4,7 @@
 // link), or the IPA itself for Feather and other signers. First-time setup is on /download.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 
 import { AddSourceButtons, openLink } from '@/components/ios/ios-guide';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -16,10 +16,10 @@ import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
 import { desktop } from '@/lib/desktop';
-import { iphoneLocal } from '@/lib/ios-sideload';
+import { getInContainer, iphoneLocal } from '@/lib/ios-sideload';
 import { fileSize, shortVersion } from '@/lib/format';
 import { rankAssets } from '@/lib/github/assets';
-import { LIVECONTAINER, liveContainerInstallLink, openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
+import { LIVECONTAINER, openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
 import { catalogOS } from '@/lib/platform';
 import { friendlyError } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
@@ -102,11 +102,7 @@ export default function IosInstallScreen() {
               size="lg"
               full
               onPress={async () => {
-                if (await openInApp(liveContainerInstallLink(ipa.url))) return;
-                Alert.alert('Install LiveContainer first', 'ArkStore installs it once, then every app goes inside it.', [
-                  { text: 'Not now', style: 'cancel' },
-                  { text: 'Install LiveContainer', onPress: () => router.push(`/iphone?app=${LIVECONTAINER.id}`) },
-                ]);
+                if (!(await getInContainer(ipa.url))) router.push(`/iphone?app=${LIVECONTAINER.id}&then=${app.id}`);
               }}
             />
             <Button label="Install or renew LiveContainer" variant="ghost" size="sm" onPress={() => router.push(`/iphone?app=${LIVECONTAINER.id}`)} />
