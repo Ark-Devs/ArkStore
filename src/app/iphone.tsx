@@ -21,8 +21,8 @@ import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
 import { desktop, type IPhoneApp, type IPhoneDevice, type IPhoneEvent } from '@/lib/desktop';
 import { rankAssets } from '@/lib/github/assets';
-import { IOS_LINKS, openInApp } from '@/lib/ios';
-import { DETAILS, importPairingFile, iphoneLocal } from '@/lib/ios-sideload';
+import { IOS_LINKS, LIVECONTAINER, openInApp } from '@/lib/ios';
+import { DETAILS, getInContainer, importPairingFile, iphoneLocal } from '@/lib/ios-sideload';
 import { useLatestArkStore } from '@/lib/self-update';
 import { radius, space, useColors } from '@/theme';
 
@@ -175,8 +175,13 @@ function Question({ q, onDone }: { q: IPhoneEvent; onDone: () => void }) {
 
 export default function IPhoneScreen() {
   const c = useColors();
-  const { app: appId } = useLocalSearchParams<{ app?: string }>();
-  const { data: target } = useApp(appId);
+  // then: the app to put into LiveContainer once it's set up (the first GET on an iPhone).
+  const { app: appId, then } = useLocalSearchParams<{ app?: string; then?: string }>();
+  // LiveContainer isn't in the catalog: ?app=livecontainer installs it straight from its release.
+  const lc = appId === LIVECONTAINER.id;
+  const { data: catalogTarget } = useApp(lc ? undefined : appId);
+  const target = lc ? { name: LIVECONTAINER.name } : catalogTarget;
+  const { data: thenApp } = useApp(lc ? then : undefined);
   const latest = useLatestArkStore(Boolean(bridge), true);
 
   const [driver, setDriver] = useState(true);
@@ -257,9 +262,11 @@ export default function IPhoneScreen() {
   const ready = Boolean(device?.trusted);
   const signedIn = Boolean(account?.email);
   const arkIpa = latest.data?.files.find((f) => f.os === 'ios' && /\.ipa$/i.test(f.name)) ?? null;
-  const targetIpa = target ? rankAssets(target.assets, { os: 'ios' }).find((f) => /\.ipa$/i.test(f.name)) ?? null : null;
-  const install = target
-    ? targetIpa && { url: targetIpa.url, name: target.name, iconUrl: target.icon_url }
+  const targetIpa = catalogTarget ? rankAssets(catalogTarget.assets, { os: 'ios' }).find((f) => /\.ipa$/i.test(f.name)) ?? null : null;
+  const install = lc
+    ? { url: LIVECONTAINER.ipa, name: LIVECONTAINER.name, iconUrl: LIVECONTAINER.icon }
+    : catalogTarget
+    ? targetIpa && { url: targetIpa.url, name: catalogTarget.name, iconUrl: catalogTarget.icon_url }
     : arkIpa && { url: arkIpa.url, name: 'ArkStore', iconUrl: 'https://github.com/Ark-Devs.png', pairFor: 'com.arkdevs.arkstore' };
   const needPassword = signedIn && !account?.remembered;
 
@@ -286,6 +293,11 @@ export default function IPhoneScreen() {
     try {
       await bridge.install({ udid: device.udid, ...install }, needPassword ? password : undefined);
       setInstalled(install.name);
+      const next = thenApp && rankAssets(thenApp.assets, { os: 'ios' }).find((f) => /\.ipa$/i.test(f.name));
+      if (lc && then) {
+        if (next && (await getInContainer(next.url))) router.back();
+        else setError(`LiveContainer is installed, but ArkStore couldn't hand ${thenApp?.name ?? 'the app'} to it. Open LiveContainer once from the Home Screen, then tap GET again.`);
+      }
       await loadAccount();
       bridge.devMode(device.udid).then((r) => setDevMode(r.enabled)).catch(() => setDevMode(null));
     } catch (e) {

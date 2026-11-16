@@ -41,7 +41,7 @@ use isideload::{
     anisette::remote_v3::{DEFAULT_ANISETTE_V3_URL, RemoteV3AnisetteProvider},
     auth::apple_account::{AppleAccount, TwoFactorCallbackParams, TwoFactorCallbackResponse},
     dev::{certificates::DevelopmentCertificate, developer_session::DeveloperSession, teams::TeamsApi},
-    sideload::{SideloaderBuilder, TeamSelection, builder::MaxCertsBehavior},
+    sideload::{SideloaderBuilder, TeamSelection, builder::MaxCertsBehavior, cert_identity::CertificateIdentity},
     util::fs_storage::FsStorage,
 };
 use rootcause::prelude::*;
@@ -539,6 +539,10 @@ struct InstallRequest {
     /// target's pairing file is used, over USB the computer's.
     #[serde(default)]
     embed_pairing: bool,
+    /// Also return the signing certificate (p12, hex) and its password, for LiveContainer: it
+    /// signs the apps it runs with the same certificate (livecontainer://certificate).
+    #[serde(default)]
+    export_cert: bool,
 }
 
 async fn install(req: InstallRequest, io: &Arc<Io>) -> Result<(), Report> {
@@ -597,8 +601,31 @@ async fn install(req: InstallRequest, io: &Arc<Io>) -> Result<(), Report> {
         let _ = std::fs::remove_dir_all(req.data_dir.join("embed"));
     }
 
+    let cert = if req.export_cert {
+        let machine = req.machine_name.clone().unwrap_or_else(|| "ArkStore".to_string());
+        let storage = FsStorage::new(req.data_dir.join("signing"));
+        let io4 = io.clone();
+        let revoke = move |certs: Vec<DevelopmentCertificate>| ask_revoke(io4.clone(), certs);
+        // The app is installed either way: a missing certificate mustn't turn that into a failure.
+        match CertificateIdentity::retrieve(&machine, &req.email, sideloader.get_dev_session(), &team, &storage, &MaxCertsBehavior::Prompt(revoke)).await {
+            Ok(id) => match id.as_p12(&id.machine_id).await {
+                Ok(p12) => Some(json!({ "p12": p12.iter().map(|b| format!("{b:02x}")).collect::<String>(), "password": id.machine_id })),
+                Err(e) => {
+                    tracing::warn!("couldn't encode the signing certificate: {e}");
+                    None
+                }
+            },
+            Err(e) => {
+                tracing::warn!("couldn't read the signing certificate: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     io.progress("done", 100);
-    io.emit(json!({ "event": "done", "teamId": team.team_id, "bundleId": installed_as, "pairingEmbedded": app_path != req.ipa }));
+    io.emit(json!({ "event": "done", "teamId": team.team_id, "bundleId": installed_as, "pairingEmbedded": app_path != req.ipa, "cert": cert }));
     Ok(())
 }
 

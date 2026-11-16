@@ -9,11 +9,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 
 import { arkSideload } from '../../modules/ark-sideload';
 import type { IPhoneAnswer, IPhoneApp, IPhoneBridge, IPhoneDevice, IPhoneEvent } from './desktop';
+import { LIVECONTAINER, liveContainerCertLink, liveContainerInstallLink, openInApp } from './ios';
 import { readExpiry } from './ios-expiry';
 import { fetchLatestArkStore } from './self-update';
 
@@ -26,7 +27,10 @@ const SELF_ID = 'self';
 const DAY = 24 * 60 * 60 * 1000;
 const RENEW_AFTER = 4 * DAY;
 
-type State = { email: string | null; apps: IPhoneApp[] };
+type Cert = { p12: string; password: string };
+// lcCert: the signing certificate from LiveContainer's last install (p12 as hex); lcCertSent: the
+// password of the one LiveContainer already has.
+type State = { email: string | null; apps: IPhoneApp[]; lcCert?: Cert; lcCertSent?: string };
 
 const path = (d: Directory | File) => decodeURI(d.uri.replace(/^file:\/\//, ''));
 const dataDir = () => {
@@ -125,7 +129,7 @@ function friendly(message: string): string {
     if (/maximum.*app id|app id limit|-7011/i.test(m))
       return 'Your free Apple Account can register 10 new apps a week, and that limit is reached. It resets within 7 days; apps you already have can still be renewed.';
     if (/3 apps|maximum number of (installed )?apps/i.test(m)) return 'A free Apple Account can have 3 apps signed this way at a time. Delete one and try again.';
-    if (/Connect LocalDevVPN|timed out|Connection refused|os error 6[01]/i.test(m)) return 'Connect LocalDevVPN (open it and tap Connect), then try again.';
+    if (/Connect LocalDevVPN|timed out|Connection refused|socket io failed|os error 6[01]/i.test(m)) return 'Connect LocalDevVPN (open it and tap Connect), then try again.';
     if (/Cancelled/.test(m)) return 'Cancelled.';
     return null;
   })();
@@ -138,6 +142,8 @@ async function downloadIpa(url: string): Promise<string> {
   let hash = 0;
   for (const ch of url) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
   const file = new File(dir, `${(hash >>> 0).toString(16)}.ipa`);
+  // A .../releases/latest/download/... link (LiveContainer) points at a new file each release.
+  if (file.exists && /\/releases\/latest\/download\//.test(url)) file.delete();
   if (!file.exists) {
     send({ event: 'progress', stage: 'download', percent: 0 });
     await File.downloadFileAsync(url, file, { idempotent: true });
@@ -160,8 +166,69 @@ async function installApp(app: { url: string; name: string; iconUrl?: string | n
   if (app.name === 'ArkStore') await record();
   // ArkStore keeps carrying the pairing file in its Info.plist when it updates itself.
   const embedPairing = app.name === 'ArkStore';
-  await run('install', { target: target(), email: s.email, password, ipa, dataDir: dataDir(), machineName: 'ArkStore on iPhone', embedPairing }, { quiet });
+  const lc = app.name === LIVECONTAINER.name;
+  const r = await run(
+    'install',
+    { target: target(), email: s.email, password, ipa, dataDir: dataDir(), machineName: 'ArkStore on iPhone', embedPairing, exportCert: lc },
+    { quiet },
+  );
   if (app.name !== 'ArkStore') await record();
+  if (lc) {
+    const next = await readState();
+    if (r.cert) next.lcCert = r.cert as Cert;
+    // Installed fresh (not a quiet renewal, which keeps LiveContainer's data): send it again.
+    if (!quiet) next.lcCertSent = undefined;
+    await writeState(next);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET on the iPhone: apps go into LiveContainer, which runs them inside itself, so a free Apple
+// Account's 3-app limit doesn't apply. ArkStore installs and renews LiveContainer (above) and
+// gives it the signing certificate; LiveContainer is the only other app it ever needs.
+// ---------------------------------------------------------------------------
+
+/** Waiting for ArkStore to be in front again (after handing LiveContainer its certificate). */
+let pendingIpa: string | null = null;
+if (Platform.OS === 'ios') {
+  AppState.addEventListener('change', (state) => {
+    if (state !== 'active' || !pendingIpa) return;
+    const url = pendingIpa;
+    pendingIpa = null;
+    openInApp(liveContainerInstallLink(url));
+  });
+}
+
+/**
+ * Installs an IPA into LiveContainer. Resolves false when LiveContainer isn't there yet (set it
+ * up with /iphone?app=livecontainer). A new certificate goes first; the app follows as soon as
+ * ArkStore is back in front.
+ */
+export async function getInContainer(ipaUrl: string): Promise<boolean> {
+  const s = await readState();
+  const cert = s.lcCert;
+  if (cert && s.lcCertSent !== cert.password) {
+    // LiveContainer opens on its Settings to save the certificate; say how to get back.
+    await new Promise<void>((resolve) =>
+      Alert.alert(
+        'One-time setup',
+        'LiveContainer opens to save your signing certificate. Tap "◀ ArkStore" at the top left to come back, and the app installs.',
+        [{ text: 'Continue', onPress: () => resolve() }],
+      ),
+    );
+    // Set before switching apps: JS may pause as soon as LiveContainer is in front.
+    pendingIpa = ipaUrl;
+    if (!(await openInApp(liveContainerCertLink(cert.p12, cert.password)))) {
+      pendingIpa = null;
+      return false;
+    }
+    const next = await readState();
+    next.lcCertSent = cert.password;
+    await writeState(next);
+    return true;
+  }
+  // Also works with a LiveContainer someone installed themselves.
+  return openInApp(liveContainerInstallLink(ipaUrl));
 }
 
 // ---------------------------------------------------------------------------

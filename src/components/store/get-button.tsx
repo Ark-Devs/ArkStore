@@ -24,7 +24,8 @@ import { repoUrl } from '@/lib/github/repo';
 import { canOpen, cancelDownload, installApp, installFromFile, isPackageInstalled, openApp, openInstalledApp } from '@/lib/install';
 import { hasUpdate, useInstalled } from '@/lib/stores/installed';
 import { installerStatus, isNeeded, useInstallers } from '@/lib/stores/installers';
-import { iphoneLocal } from '@/lib/ios-sideload';
+import { getInContainer, iphoneLocal } from '@/lib/ios-sideload';
+import { LIVECONTAINER } from '@/lib/ios';
 import { useOnPhoneCheck } from '@/lib/stores/on-phone';
 import { useTasks } from '@/lib/stores/tasks';
 import { friendlyError } from '@/lib/supabase';
@@ -182,9 +183,13 @@ export function GetButton({ app, size = 'sm' }: { app: ListApp; size?: Size }) {
     label = OS_LABEL[app.platforms[0]].toUpperCase();
     onPress = () => router.push(`/app/${app.id}`);
   } else if (pick?.os === 'ios') {
-    // ArkStore on an iPhone installs it itself (/iphone); anywhere else the app's iPhone page
-    // offers the ways that can (ArkStore on a computer, SideStore, TrollStore, the IPA).
-    onPress = () => router.push(iphoneLocal ? `/iphone?app=${app.id}` : `/app/${app.id}/ios`);
+    // ArkStore on an iPhone hands it to LiveContainer (no 3-app limit); without LiveContainer, or
+    // anywhere else, the app's iPhone page offers the other ways (ArkStore's signer, SideStore, ...).
+    onPress = async () => {
+      if (!iphoneLocal) return router.push(`/app/${app.id}/ios`);
+      // The first GET sets up LiveContainer, then carries on with this app.
+      if (!(await getInContainer(pick.url))) router.push(`/iphone?app=${LIVECONTAINER.id}&then=${app.id}`);
+    };
   } else if (!hasRelease) {
     label = 'VIEW';
     onPress = () => Linking.openURL(repoUrl(app.repo_full_name));

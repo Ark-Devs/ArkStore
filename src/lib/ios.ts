@@ -32,6 +32,25 @@ export const IOS_SHORTCUT = {
 /** TrollStore's own URL scheme: installs an IPA from a link, permanently. */
 export const trollStoreInstallLink = (ipaUrl: string) => `apple-magnifier://install?url=${enc(ipaUrl)}`;
 
+/**
+ * LiveContainer (github.com/LiveContainer/LiveContainer) runs apps inside itself, so a free Apple
+ * Account's 3-app / 10-App-ID limits don't apply: ArkStore installs it once with its own signer,
+ * then hands every other IPA to it. URL hosts from its LCAppListView.swift.
+ */
+export const LIVECONTAINER = {
+  id: 'livecontainer',
+  name: 'LiveContainer',
+  ipa: 'https://github.com/LiveContainer/LiveContainer/releases/latest/download/LiveContainer.ipa',
+  icon: 'https://github.com/LiveContainer.png',
+};
+export const liveContainerInstallLink = (ipaUrl: string) => `livecontainer://install?url=${enc(ipaUrl)}`;
+/** Hands LiveContainer the signing certificate (a p12 as hex), so it can sign the apps it runs. */
+export function liveContainerCertLink(p12Hex: string, password: string) {
+  let bin = '';
+  for (let i = 0; i < p12Hex.length; i += 2) bin += String.fromCharCode(parseInt(p12Hex.slice(i, i + 2), 16));
+  return `livecontainer://certificate?cert=${enc(btoa(bin))}&password=${enc(password)}`;
+}
+
 /** Scripts that do the computer part of SideStore's setup (tools/ios-setup, served with the download page). */
 const SETUP_BASE = 'https://store.arkdevs.xyz/ios-setup';
 export const IOS_SETUP = {

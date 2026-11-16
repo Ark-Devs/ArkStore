@@ -16,10 +16,10 @@ import { Txt } from '@/components/ui/text';
 import { TopBar } from '@/components/ui/top-bar';
 import { useApp } from '@/lib/api';
 import { desktop } from '@/lib/desktop';
-import { iphoneLocal } from '@/lib/ios-sideload';
+import { getInContainer, iphoneLocal } from '@/lib/ios-sideload';
 import { fileSize, shortVersion } from '@/lib/format';
 import { rankAssets } from '@/lib/github/assets';
-import { openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
+import { LIVECONTAINER, openInApp, sideStoreInstallLink, trollStoreInstallLink } from '@/lib/ios';
 import { catalogOS } from '@/lib/platform';
 import { friendlyError } from '@/lib/supabase';
 import { radius, space, useColors } from '@/theme';
@@ -92,9 +92,26 @@ export default function IosInstallScreen() {
         </View>
         <DotRule />
 
+        {iphoneLocal ? (
+          <Way
+            title="Install in LiveContainer"
+            body={`No 3-app limit: ${app.name} runs inside LiveContainer, which ArkStore installs once and keeps signed. Add it to your Home Screen from LiveContainer (hold the app).`}>
+            <Button
+              label={`Get ${app.name}`}
+              variant="accent"
+              size="lg"
+              full
+              onPress={async () => {
+                if (!(await getInContainer(ipa.url))) router.push(`/iphone?app=${LIVECONTAINER.id}&then=${app.id}`);
+              }}
+            />
+            <Button label="Install or renew LiveContainer" variant="ghost" size="sm" onPress={() => router.push(`/iphone?app=${LIVECONTAINER.id}`)} />
+          </Way>
+        ) : null}
+
         {desktop?.iphone || iphoneLocal ? (
           <Way
-            title={iphoneLocal ? 'Install with ArkStore' : 'From this computer'}
+            title={iphoneLocal ? 'Install as its own app (uses 1 of your 3)' : 'From this computer'}
             body={
               iphoneLocal
                 ? `ArkStore signs ${app.name} with your Apple Account and installs it, then renews it with your other apps.`
@@ -102,9 +119,8 @@ export default function IosInstallScreen() {
             }>
             <Button
               label={iphoneLocal ? `Install ${app.name}` : 'Install on iPhone'}
-              variant="accent"
-              size={iphoneLocal ? 'lg' : 'md'}
-              full={Boolean(iphoneLocal)}
+              variant={iphoneLocal ? 'secondary' : 'accent'}
+              size="md"
               onPress={() => router.push(`/iphone?app=${app.id}`)}
             />
           </Way>
